@@ -43,6 +43,17 @@ export function shouldPurge(
   return isBeyondRing(clip, newestSeq, ringSize);
 }
 
+/**
+ * A clip whose row says ready but whose bytes are gone.
+ *
+ * iOS may reclaim the cache directory at any time, so a row can outlive its
+ * file. This is the check that stops the list showing a green dot over a clip
+ * that will not play, which is the one failure the status dot exists to
+ * prevent.
+ */
+export const isPhantom = (clip: Clip, fileExists: boolean): boolean =>
+  clip.status === 'ready' && !fileExists;
+
 /** Why a clip is going, for the audit trail. */
 export const purgeReason = (clip: Clip, now: number): 'clip.purged.expiry' | 'clip.purged.ring' =>
   isPastExpiry(clip, now) ? 'clip.purged.expiry' : 'clip.purged.ring';

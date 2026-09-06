@@ -3,7 +3,14 @@ import { defaults } from '@/config/appConfig';
 import { redact } from '@/lib/log';
 import type { Clip } from '@/types/clip';
 
-import { isBeyondRing, isPastExpiry, pinExpiryFrom, purgeReason, shouldPurge } from '../rules';
+import {
+  isBeyondRing,
+  isPastExpiry,
+  isPhantom,
+  pinExpiryFrom,
+  purgeReason,
+  shouldPurge,
+} from '../rules';
 
 /**
  * The rules that carry the privacy promise.
@@ -91,6 +98,25 @@ describe('expiry', () => {
   it('records why a clip went, for the audit trail', () => {
     expect(purgeReason(clip({ purgeAfter: NOW - 1 }), NOW)).toBe('clip.purged.expiry');
     expect(purgeReason(clip(), NOW)).toBe('clip.purged.ring');
+  });
+});
+
+describe('clips whose files have gone', () => {
+  /* iOS may reclaim the cache directory between launches, so a row can outlive
+     its file. A green dot over a clip that will not play is the one failure the
+     status dot exists to prevent. */
+  it('spots a ready clip with no bytes behind it', () => {
+    expect(isPhantom(clip({ status: 'ready' }), false)).toBe(true);
+  });
+
+  it('leaves a ready clip alone when its file is there', () => {
+    expect(isPhantom(clip({ status: 'ready' }), true)).toBe(false);
+  });
+
+  it('says nothing about clips that never claimed to be ready', () => {
+    for (const status of ['announced', 'downloading', 'verifying', 'failed', 'expired'] as const) {
+      expect(isPhantom(clip({ status }), false)).toBe(false);
+    }
   });
 });
 

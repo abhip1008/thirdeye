@@ -5,8 +5,8 @@ import type { Clip } from '@/types/clip';
 import type { PinReason } from '@/types/protocol';
 
 import { audit } from './audit';
-import { pinExpiryFrom, purgeReason, shouldPurge } from './rules';
-import { deleteAllMatchFiles, deleteClipFiles } from './storage';
+import { isPhantom, pinExpiryFrom, purgeReason, shouldPurge } from './rules';
+import { clipFileExists, deleteAllMatchFiles, deleteClipFiles } from './storage';
 
 /**
  * Retention is a promise, so it is enforced here and only here.
@@ -58,6 +58,38 @@ export async function sweep(
     log.info('retention', `purged ${doomed.length} clip(s)`, { bytesFreed });
   }
   return { deleted: doomed.length, bytesFreed };
+}
+
+/**
+ * Brings the list back in line with what is actually on disk.
+ *
+ * Runs on hydrate, before a single row is shown. On iOS the operating system
+ * can reclaim the cache directory between launches, and on any platform a
+ * half-finished delete leaves a row without a file. Either way the umpire must
+ * not be told a clip is ready when it is not: the row is downgraded so the dot
+ * goes grey and the reason is written where they can read it.
+ */
+export async function reconcile(matchId: string): Promise<number> {
+  const clips = await listClips(matchId);
+  let corrected = 0;
+
+  for (const clip of clips) {
+    if (!isPhantom(clip, clipFileExists(clip.localPath))) continue;
+    await upsertClip({
+      ...clip,
+      status: 'failed',
+      localPath: null,
+      bytesLocal: 0,
+      lastError: 'The phone freed up space and removed it',
+    });
+    await audit('clip.failed', matchId, {
+      camera_id: clip.camera_id, seq: clip.seq, reason: 'file missing on disk',
+    });
+    corrected++;
+  }
+
+  if (corrected) log.warn('retention', `${corrected} clip(s) had lost their files`);
+  return corrected;
 }
 
 /** Pin a clip, which sets an explicit expiry rather than removing one. */

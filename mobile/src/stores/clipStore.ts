@@ -54,6 +54,9 @@ export const useClips = create<ClipStore>((set, get) => ({
   hydrated: false,
 
   hydrate: async (matchId) => {
+    // Check the disk before showing anything. A row that outlived its file
+    // would otherwise render as a green dot over a clip that will not play.
+    await retention.reconcile(matchId);
     const clips = await q.listClips(matchId);
     set({ clips, hydrated: true });
     log.debug('clips', `hydrated ${clips.length}`);
