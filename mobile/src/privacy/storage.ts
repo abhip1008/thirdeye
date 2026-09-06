@@ -1,15 +1,32 @@
 import { Directory, File, Paths } from 'expo-file-system';
+import { Platform } from 'react-native';
 
 import { log } from '@/lib/log';
 
 /**
  * Where video lives on the phone, and nowhere else.
  *
- * Everything goes under the app's private document directory. Never the
- * camera roll, never shared storage, never a cache directory the OS might
- * hand to a backup agent. On Android the app-private directory is not
- * readable by other apps and is removed wholesale when the app is uninstalled,
- * which is the behaviour the retention promise depends on.
+ * App-private on both platforms: never the camera roll, never shared storage,
+ * never a directory another app can read. Removed wholesale when the app is
+ * uninstalled, which is the behaviour the retention promise depends on.
+ *
+ * The directory differs by platform, and the reason is backup rather than
+ * convention.
+ *
+ * On iOS everything in the app's Documents directory is copied to iCloud
+ * automatically. Match footage landing in a player's umpire's iCloud account
+ * would break the central promise - that it stays on this phone - without
+ * anyone doing anything wrong. `Library/Caches` is excluded from backup by the
+ * operating system, so that is where clips go. The trade is that iOS may evict
+ * the directory under storage pressure. For a twelve-ball rolling buffer that
+ * is an acceptable failure and arguably a feature: the bytes are re-requestable
+ * from the vest, and `reconcile()` below makes sure the status dot never claims
+ * a clip is ready when its file has gone.
+ *
+ * On Android the document directory is not backed up, because `allowBackup` is
+ * set to false in app.json. Left at its default of true, Android's auto-backup
+ * would copy app-private files to the user's Google Drive - the same hole in
+ * the same promise, through a different door.
  *
  * The in-flight suffix is the commit mechanism. A file called `.mp4.part` is
  * partial by definition and the UI never offers it. It becomes a real `.mp4`
@@ -19,7 +36,10 @@ import { log } from '@/lib/log';
 
 export const PART_SUFFIX = '.part';
 
-const matchesRoot = () => new Directory(Paths.document, 'matches');
+/** See the note above: iOS Documents is backed up to iCloud, Caches is not. */
+const storageRoot = (): Directory => (Platform.OS === 'ios' ? Paths.cache : Paths.document);
+
+const matchesRoot = () => new Directory(storageRoot(), 'matches');
 
 export function matchDir(matchId: string): Directory {
   return new Directory(matchesRoot(), matchId);
@@ -40,6 +60,26 @@ export function clipFile(matchId: string, cameraId: string, seq: number): File {
 
 export function partFile(matchId: string, cameraId: string, seq: number): File {
   return new File(matchDir(matchId), clipFileName(cameraId, seq) + PART_SUFFIX);
+}
+
+/**
+ * Whether a committed clip's bytes are actually still on disk.
+ *
+ * Not paranoia. On iOS the operating system may reclaim the cache directory
+ * whenever it likes, so a row can outlive its file. A green dot over a clip
+ * that will not play is the single worst thing this product can do on a field,
+ * so the row is checked rather than trusted.
+ *
+ * The mock sentinel is not a real path and is always considered present.
+ */
+export function clipFileExists(localPath: string | null): boolean {
+  if (!localPath) return false;
+  if (!localPath.startsWith('file:')) return true; // bundled or mock asset
+  try {
+    return new File(localPath).exists;
+  } catch {
+    return false;
+  }
 }
 
 /** Bytes already on disk for a resumable download, or 0. Drives `Range:`. */

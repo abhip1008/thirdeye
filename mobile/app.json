@@ -33,11 +33,27 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
-      ]
+      ],
+      "allowBackup": false
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "dev.thirdeye.app"
+      "bundleIdentifier": "dev.thirdeye.app",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Third Eye connects to the vest on its own Wi-Fi network to fetch clips. It does not use the internet during a match.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "192.168.43.1": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": false
+            }
+          }
+        },
+        "UIFileSharingEnabled": false,
+        "LSSupportsOpeningDocumentsInPlace": false,
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
