@@ -1,0 +1,73 @@
+{
+  "_comment": "Golden fixture. Both the phone and the vest parse this file in their test suites. If a change to schema/protocol.v1.json breaks either side, one of those two tests fails before the code ever reaches a ground.",
+  "protocol_version": 1,
+  "clip_meta": {
+    "v": 1,
+    "match_id": "2026-09-06-nwcl-div2-marymoor",
+    "camera_id": "vest-01",
+    "seq": 9,
+    "started_at": 1757193021.22,
+    "ended_at": 1757193036.48,
+    "duration_s": 15.26,
+    "preroll_s": 3.0,
+    "closed_by": "button",
+    "resolution": "1920x1200",
+    "fps": 60,
+    "codec": "h265",
+    "bytes": 9540221,
+    "sha256": "3f9a2c1d4e5b6a7089abcdef0123456789abcdef0123456789abcdef01234567",
+    "over": 2,
+    "ball_in_over": 3,
+    "legal": true
+  },
+  "server_messages": [
+    {
+      "v": 1, "type": "hello", "camera_id": "vest-01",
+      "match_id": "2026-09-06-nwcl-div2-marymoor", "seq_latest": 9,
+      "protocol": 1, "firmware": "0.1.0", "end": "bowlers", "ring_size": 12
+    },
+    {
+      "v": 1, "type": "clip_ready", "seq": 9, "camera_id": "vest-01",
+      "bytes": 9540221,
+      "sha256": "3f9a2c1d4e5b6a7089abcdef0123456789abcdef0123456789abcdef01234567",
+      "duration_s": 15.26, "closed_by": "button"
+    },
+    { "v": 1, "type": "clip_expired", "seq": -3, "camera_id": "vest-01" },
+    {
+      "v": 1, "type": "session_state", "camera_id": "vest-01",
+      "state": "recording", "seq": 10, "since": 1757193045.1
+    },
+    {
+      "v": 1, "type": "status", "camera_id": "vest-01",
+      "health": {
+        "battery_pct": 62, "temp_c": 51.2, "disk_free_gb": 180,
+        "encoder_fps": 59.9, "clips_held": 12, "remote_battery_pct": 88
+      }
+    },
+    { "v": 1, "type": "pong", "t": 1757193045.1 }
+  ],
+  "client_messages": [
+    {
+      "v": 1, "type": "ack", "seq": 9,
+      "sha256": "3f9a2c1d4e5b6a7089abcdef0123456789abcdef0123456789abcdef01234567"
+    },
+    { "v": 1, "type": "pin", "seq": 9, "pinned": true, "reason": "wicket" },
+    { "v": 1, "type": "ping", "t": 1757193045.1 },
+    { "v": 1, "type": "resync", "since_seq": 4 }
+  ],
+  "pairing_payload": {
+    "v": 1,
+    "ssid": "thirdeye-vest-01",
+    "password": "REDACTED-IN-FIXTURE",
+    "host": "192.168.43.1",
+    "camera_id": "vest-01",
+    "psk": null,
+    "end": "bowlers"
+  },
+  "rejected": {
+    "_comment": "Shapes that MUST fail to parse. Guards against a validator that accepts everything.",
+    "missing_required_field": { "v": 1, "type": "clip_ready", "seq": 9 },
+    "unknown_message_type": { "v": 1, "type": "definitely_not_a_real_type", "seq": 9 },
+    "not_an_object": "clip_ready"
+  }
+}
