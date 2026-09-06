@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://thirdeye.local/schema/protocol.v1.json",
+  "title": "ThirdEyeProtocol",
+  "description": "Wire contract between the vest (Python), the phone (TypeScript) and the cloud.\nThis file is the ONLY source of truth. Do not hand-edit the generated TS or Python;\nedit this file and run `npm run generate` in protocol/.",
+  "x-protocolVersion": 1,
+  "$defs": {
+    "ClosedBy": {
+      "type": "string",
+      "description": "How a clip stopped recording. Drives a badge on the clip row.",
+      "enum": ["button", "timeout", "recovered", "manual"]
+    },
+    "ClipStatus": {
+      "type": "string",
+      "description": "Phone-local lifecycle of a clip. The vest never sees this.",
+      "enum": ["announced", "downloading", "verifying", "ready", "failed", "expired"]
+    },
+    "SessionState": {
+      "type": "string",
+      "description": "Vest capture state machine, see spec 7.6.",
+      "enum": ["idle", "recording"]
+    },
+    "ConnectionState": {
+      "type": "string",
+      "description": "Phone-local view of the control channel.",
+      "enum": ["disconnected", "connecting", "connected", "reconnecting"]
+    },
+    "UmpireEnd": {
+      "type": "string",
+      "description": "Which end the vest is standing at. One vest in v1; the field exists so a second unit needs no protocol change.",
+      "enum": ["bowlers", "square_leg"]
+    },
+    "PinReason": {
+      "type": "string",
+      "description": "Why a clip is exempt from auto-purge. Free-text is not allowed: pin reasons end up in an audit log and must be enumerable.",
+      "enum": ["wicket", "review", "no_ball", "incident", "other"]
+    },
+    "AppealType": {
+      "type": "string",
+      "enum": ["lbw", "caught", "runout", "stumping", "noball", "other"]
+    },
+    "Decision": {
+      "type": "string",
+      "enum": ["out", "not_out", "inconclusive"]
+    },
+    "ClipMeta": {
+      "type": "object",
+      "description": "The sidecar the vest writes next to every clip, and the payload of GET /api/clips.",
+      "additionalProperties": false,
+      "required": [
+        "v", "match_id", "camera_id", "seq", "started_at", "ended_at",
+        "duration_s", "preroll_s", "closed_by", "resolution", "fps",
+        "codec", "bytes", "sha256", "over", "ball_in_over", "legal"
+      ],
+      "properties": {
+        "v": { "type": "integer", "description": "Protocol version this object was written by." },
+        "match_id": { "type": "string", "description": "Opaque match identifier minted by the vest. Contains no personal data." },
+        "camera_id": { "type": "string", "description": "Stable id of the vest unit. Present from v1 so a second unit is additive." },
+        "seq": { "type": "integer", "description": "Monotonic delivery counter. Wides and no-balls get their own seq." },
+        "started_at": { "type": "number", "description": "Unix seconds, vest clock, including pre-roll." },
+        "ended_at": { "type": "number", "description": "Unix seconds, vest clock." },
+        "duration_s": { "type": "number" },
+        "preroll_s": { "type": "number", "description": "Seconds of ring buffer prepended before the START press." },
+        "closed_by": { "$ref": "#/$defs/ClosedBy" },
+        "resolution": { "type": "string", "description": "WxH, e.g. 1920x1200." },
+        "fps": { "type": "number" },
+        "codec": { "type": "string" },
+        "bytes": { "type": "integer" },
+        "sha256": { "type": "string", "description": "Lowercase hex of the review-copy file. The phone must verify this before committing." },
+        "over": { "type": ["integer", "null"], "description": "Nullable: the vest does not know the score. The phone fills it in." },
+        "ball_in_over": { "type": ["integer", "null"] },
+        "legal": { "type": "boolean", "description": "False for a wide or a no-ball." }
+      }
+    },
+    "HealthSnapshot": {
+      "type": "object",
+      "description": "Vest telemetry. Deliberately carries no video and no identifiers beyond camera_id.",
+      "additionalProperties": false,
+      "required": ["battery_pct", "temp_c", "disk_free_gb", "encoder_fps", "clips_held"],
+      "properties": {
+        "battery_pct": { "type": "number" },
+        "temp_c": { "type": "number" },
+        "disk_free_gb": { "type": "number" },
+        "encoder_fps": { "type": "number", "description": "Measured, not configured. A silent drop here is the worst failure mode in the system." },
+        "clips_held": { "type": "integer" },
+        "remote_battery_pct": { "type": ["number", "null"], "description": "Battery of the BLE remote, null if the remote has never reported." }
+      }
+    },
+    "HelloMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "camera_id", "match_id", "seq_latest", "protocol", "firmware"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "hello" },
+        "camera_id": { "type": "string" },
+        "match_id": { "type": ["string", "null"] },
+        "seq_latest": { "type": "integer" },
+        "protocol": { "type": "integer", "description": "Highest protocol version the vest speaks. The phone refuses to pair on a major mismatch." },
+        "firmware": { "type": "string" },
+        "end": { "$ref": "#/$defs/UmpireEnd" },
+        "ring_size": { "type": "integer", "description": "How many clips the vest holds. The phone mirrors this rather than hardcoding 12." }
+      }
+    },
+    "ClipReadyMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "seq", "camera_id", "bytes", "sha256", "duration_s", "closed_by"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "clip_ready" },
+        "seq": { "type": "integer" },
+        "camera_id": { "type": "string" },
+        "bytes": { "type": "integer" },
+        "sha256": { "type": "string" },
+        "duration_s": { "type": "number" },
+        "closed_by": { "$ref": "#/$defs/ClosedBy" }
+      }
+    },
+    "ClipExpiredMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "seq", "camera_id"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "clip_expired" },
+        "seq": { "type": "integer" },
+        "camera_id": { "type": "string" }
+      }
+    },
+    "SessionStateMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "state", "seq", "since", "camera_id"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "session_state" },
+        "camera_id": { "type": "string" },
+        "state": { "$ref": "#/$defs/SessionState" },
+        "seq": { "type": "integer" },
+        "since": { "type": "number" }
+      }
+    },
+    "StatusMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "camera_id", "health"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "status" },
+        "camera_id": { "type": "string" },
+        "health": { "$ref": "#/$defs/HealthSnapshot" }
+      }
+    },
+    "PongMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "t"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "pong" },
+        "t": { "type": "number", "description": "Echo of the client ping timestamp, for RTT." }
+      }
+    },
+    "AckMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "seq", "sha256"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "ack" },
+        "seq": { "type": "integer" },
+        "sha256": { "type": "string" }
+      }
+    },
+    "PinMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "seq", "pinned", "reason"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "pin" },
+        "seq": { "type": "integer" },
+        "pinned": { "type": "boolean" },
+        "reason": { "$ref": "#/$defs/PinReason" }
+      }
+    },
+    "PingMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "t"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "ping" },
+        "t": { "type": "number" }
+      }
+    },
+    "ResyncMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "type", "since_seq"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "resync" },
+        "since_seq": { "type": "integer", "description": "Highest seq the phone has committed. The vest replays everything after it that is still held." }
+      }
+    },
+    "ServerMessage": {
+      "description": "Vest to phone. Unknown types are ignored, never an error, so either side upgrades independently.",
+      "x-discriminator": "type",
+      "oneOf": [
+        { "$ref": "#/$defs/HelloMessage" },
+        { "$ref": "#/$defs/ClipReadyMessage" },
+        { "$ref": "#/$defs/ClipExpiredMessage" },
+        { "$ref": "#/$defs/SessionStateMessage" },
+        { "$ref": "#/$defs/StatusMessage" },
+        { "$ref": "#/$defs/PongMessage" }
+      ]
+    },
+    "ClientMessage": {
+      "description": "Phone to vest.",
+      "x-discriminator": "type",
+      "oneOf": [
+        { "$ref": "#/$defs/AckMessage" },
+        { "$ref": "#/$defs/PinMessage" },
+        { "$ref": "#/$defs/PingMessage" },
+        { "$ref": "#/$defs/ResyncMessage" }
+      ]
+    },
+    "PairingPayload": {
+      "type": "object",
+      "description": "The contents of the QR code on the vest. Scanned once per season, not per match.",
+      "additionalProperties": false,
+      "required": ["v", "ssid", "password", "host", "camera_id"],
+      "properties": {
+        "v": { "type": "integer" },
+        "ssid": { "type": "string" },
+        "password": { "type": "string", "description": "WPA2 passphrase for the vest AP. Secret: never logged, never rendered, never synced." },
+        "host": { "type": "string", "description": "e.g. 192.168.43.1" },
+        "camera_id": { "type": "string" },
+        "psk": { "type": ["string", "null"], "description": "Optional 32-byte hex shared secret. When present the phone HMACs every request so another phone on the same AP cannot pull clips. See docs/THREAT_MODEL.md." },
+        "end": { "$ref": "#/$defs/UmpireEnd" }
+      }
+    }
+  }
+}
