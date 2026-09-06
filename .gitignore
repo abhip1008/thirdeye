@@ -1,0 +1,43 @@
+# Node
+node_modules/
+npm-debug.log*
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Native build output (expo prebuild)
+mobile/android/
+mobile/ios/
+
+# Local config and secrets. Nothing in this repo needs a secret; if a file here
+# ever does, it does not get committed.
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Recorded footage must never reach version control, under any circumstances.
+*.mp4
+*.mkv
+*.h264
+!mobile/assets/mock/sample.mp4
