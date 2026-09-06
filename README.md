@@ -111,6 +111,7 @@ yet, and none is needed to use the entire product.
 | ESLint | clean |
 | Tests | 30 mobile, 10 vest, all passing |
 | Android production bundle | exports, 4.3 MB, sample clip included |
+| iOS production bundle | exports, sample clip included |
 | Expo Router route discovery | all 8 routes found under `src/app` |
 | Protocol generator | TypeScript and Python regenerate byte-identical |
 | Golden fixture | parses on both sides; three malformed shapes rejected on both sides |
@@ -135,6 +136,10 @@ a device.
 - **Expo Go compatibility** for `expo-video` and `expo-secure-store`. Both ship
   in the Expo Go client for SDK 57, so this should be fine, but it is an
   assumption rather than an observation.
+- **iOS specifically.** It bundles, and the platform differences are handled in
+  code, but nothing has been run on an actual iPhone. The thing most worth
+  checking there is that clips survive between launches, because iOS stores them
+  in a directory it is allowed to reclaim.
 
 Everything above is a Phase 1 acceptance item. Work through
 [the tour](#a-five-minute-tour) on a real device and you will have covered it.
@@ -147,10 +152,11 @@ Everything above is a Phase 1 acceptance item. Work through
 
 - **Node 20 or newer** and npm
 - **Python 3.11+**, only if you want to run the vest scaffold
-- **An Android phone** with the free **Expo Go** app from the Play Store, and
-  the phone on the same Wi-Fi as your computer
+- **An Android phone or an iPhone**, with the free **Expo Go** app installed,
+  on the same Wi-Fi as your computer
 
-You do **not** need Android Studio, the Android SDK, or any hardware.
+You do **not** need Android Studio, Xcode, a paid developer account, or any
+hardware.
 
 ### The app
 
@@ -161,12 +167,39 @@ npm install
 npx expo start
 ```
 
-A QR code appears in the terminal. Open **Expo Go** on the phone and scan it.
+A QR code appears in the terminal.
+
+- **Android:** open **Expo Go** and scan it from inside the app.
+- **iPhone:** point the built-in **Camera** app at it and tap the banner. (Expo
+  Go on iOS does not have its own scanner.)
+
 The app builds and opens in about thirty seconds.
 
 > **If the phone cannot reach your computer** (guest Wi-Fi, VPN, corporate
 > network), run `npx expo start --tunnel` instead. It is slower but routes
 > around the network.
+
+### Which platforms it runs on
+
+Phase 1 is one React Native codebase and it runs on both. There is no separate
+iOS build and no second app.
+
+| | Phase 1, today | On the field, Phase 3 on |
+|---|---|---|
+| **Android** | Expo Go | supported, and the primary target |
+| **iPhone** | Expo Go | works, but the umpire joins the vest's Wi-Fi by hand |
+
+The only thing iOS genuinely cannot do is join the vest's access point from
+inside the app. That needs `NEHotspotConfiguration`, which needs a paid Apple
+Developer account, an entitlement, and a custom build - and it does not work in
+Expo Go at all. Joining the vest's network once from iOS Settings at the toss
+costs nothing and is almost certainly the right answer for a club league.
+[ADR 7](docs/decisions/0007-ios-support.md) has the full reasoning.
+
+Everything else on the usual iOS list is already done: the local-network usage
+string, an ATS exception scoped to the vest's address and nothing else, file
+sharing off, and no microphone usage string so the microphone cannot be
+requested at all.
 
 There is no vest, so the app runs against `MockTransport`, a fake vest that
 bowls on a timer, occasionally drops a delivery, and produces timeouts and
@@ -419,8 +452,11 @@ The short version, all implemented and running:
   holding for exactly the clips people care about most.
 - **No microphone.** Not a cost saving - it removes an entire legal category,
   and snicko was never possible from twenty metres anyway.
-- **App-private storage, never the camera roll.** Screenshots are blocked while
-  a match is open, because a screenshot escapes every rule above.
+- **App-private storage, never the camera roll**, and deliberately out of reach
+  of the platform backup. Both platforms copy app-private files to the user's
+  personal cloud by default - iCloud on iOS, Google Drive on Android - and both
+  of those doors are now shut. Screenshots are blocked while a match is open,
+  because a screenshot escapes every rule above.
 - **Audio, location and media-library permissions are blocked outright**, not
   merely unrequested, so a future dependency cannot pull them back in.
 - **An append-only audit trail** records what was deleted and when, without
@@ -440,6 +476,8 @@ hardware is ordered. They are policy questions, not engineering ones.
 | Expo Go cannot find the dev server | `npx expo start --tunnel` |
 | `npm install` fails on peer dependencies | Already handled by `.npmrc`; if you removed it, use `npm install --legacy-peer-deps` |
 | Metro cache weirdness after a dependency change | `npx expo start --clear` |
+| iPhone: Expo Go has no scan button | Use the built-in Camera app on the QR code |
+| iPhone: clips show **Not here** after reopening the app | Expected. iOS may reclaim the cache directory; the app notices and tells you rather than showing a dot that lies. |
 | No clips appear on the live screen | Settings -> check the mock vest is on and the speed is not **Frozen** |
 | Clips arrive too slowly to demo | Settings -> mock speed **10s**. 40s is a real over's rhythm. |
 | `Cannot find module 'babel-preset-expo'` | `npm install` in `mobile/` - it is a direct devDependency |

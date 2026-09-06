@@ -86,13 +86,29 @@ Pinning sets an expiry rather than removing one. This is the important detail:
 in most systems "starred" means "kept forever", and the moment that is true the
 retention promise stops being true for exactly the clips people care about.
 
-### 3.3 App-private storage, never the camera roll
+### 3.3 App-private storage, and out of reach of the platform backup
 
-Clips live under the app's private document directory
-(`mobile/src/privacy/storage.ts`). On Android that directory is not readable by
-other apps, is not indexed by the gallery, and is removed when the app is
-uninstalled. Nothing is ever written to shared storage or `MediaLibrary`, so
-nothing syncs to a photo cloud the league has no relationship with.
+Clips live in app-private storage on both platforms
+(`mobile/src/privacy/storage.ts`): not readable by other apps, not indexed by
+the gallery, removed when the app is uninstalled. Nothing is ever written to
+shared storage or `MediaLibrary`.
+
+Getting that far is the easy half. The harder half is that **both platforms will
+happily copy app-private files to the user's personal cloud by default**, and
+neither does it in a way anyone would notice.
+
+- **iOS** backs up the app's Documents directory to iCloud. Clips therefore live
+  under `Library/Caches`, which the operating system excludes from backup. The
+  trade is that iOS may evict that directory under storage pressure, which for a
+  twelve-ball rolling buffer is acceptable - and `reconcile()` runs on every
+  hydrate so a row that outlived its file is downgraded rather than shown as a
+  green dot over a clip that will not play.
+- **Android** auto-backup copies app-private files to Google Drive unless
+  `allowBackup` is false. It is now false.
+
+Neither of these is exotic. Both are defaults, both would have quietly broken
+the promise in section 1, and both are the kind of thing that is only found by
+asking "where does this file actually end up".
 
 The `.part` suffix is the commit mechanism: a file without it has been
 size-checked and hash-checked. A crash mid-download cannot leave a broken clip
@@ -100,12 +116,21 @@ that looks fine.
 
 ### 3.4 Screenshots are blocked while a match is open
 
-A screenshot escapes every rule above and lands in a camera roll. `expo-screen-capture`
-blocks capture and blanks the app in the recent-apps switcher for as long as a
-match is open (`mobile/src/privacy/screenGuard.ts`). It is best-effort - it does
-nothing in some Expo Go configurations - and it is not a security control
-against a determined person. It is there because the common case is an umpire
-grabbing a screenshot to show someone, and that is worth making harder.
+A screenshot escapes every rule above and lands in a camera roll.
+`expo-screen-capture` blocks capture for as long as a match is open
+(`mobile/src/privacy/screenGuard.ts`).
+
+The two platforms need different amounts of asking. Android's `FLAG_SECURE`
+covers capture and the recent-apps thumbnail in one call. iOS blocks capture
+with the same call - recordings on iOS 11+, screenshots on iOS 13+ - but leaves
+the app switcher snapshot alone, so the blur overlay is enabled separately.
+That snapshot matters: it is a frame of a batter sitting on someone's screen
+while they flick between apps.
+
+It is best-effort - it does nothing in some Expo Go configurations - and it is
+not a security control against a determined person. It is there because the
+common case is an umpire grabbing a screenshot to show someone, and that is
+worth making harder.
 
 ### 3.5 Secrets are not in the database
 
@@ -114,6 +139,30 @@ platform keystore, never to SQLite and never to the Zustand store. They are read
 at the moment of use. The logger redacts anything keyed `password`, `psk`,
 `secret`, `token` or `authorization`, and truncates long hex strings, so
 diagnostics output is safe to screenshot and send.
+
+---
+
+## 3a. Where the two platforms differ
+
+Every guarantee in section 3 holds on both platforms, but not by the same
+mechanism, and a claim that is true on one and false on the other is worse than
+no claim.
+
+| Control | Android | iOS |
+|---|---|---|
+| App-private storage | document directory | `Library/Caches` (Documents is backed up to iCloud) |
+| Excluded from platform backup | `allowBackup: false` | operating system excludes `Library/Caches` |
+| File survives OS pressure | yes | **no** - may be evicted, `reconcile()` catches it |
+| Screenshot blocked | `FLAG_SECURE` | iOS 13+ |
+| Screen recording blocked | `FLAG_SECURE` | iOS 11+ |
+| App switcher preview hidden | free with `FLAG_SECURE` | separate call, made explicitly |
+| Microphone impossible to request | `blockedPermissions` | no usage string, so the OS refuses |
+| Files app cannot see clips | not exposed | `UIFileSharingEnabled: false` |
+| Secrets at rest | Keystore | Keychain |
+| Joining the vest's Wi-Fi | in-app | **manual, or a paid entitlement** - see [ADR 7](decisions/0007-ios-support.md) |
+
+The last row is the only one where iOS is genuinely worse for the product rather
+than merely different, and it is a Phase 3 problem, not a privacy one.
 
 ---
 
