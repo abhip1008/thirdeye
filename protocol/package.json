@@ -1,0 +1,11 @@
+{
+  "name": "@thirdeye/protocol",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Source of truth for the Third Eye wire protocol. Generates TypeScript for the phone and Pydantic models for the vest.",
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "check": "node scripts/generate.mjs --check"
+  }
+}

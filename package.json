@@ -1,0 +1,13 @@
+{
+  "name": "thirdeye",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Umpire-worn replay system for club cricket.",
+  "scripts": {
+    "protocol": "node protocol/scripts/generate.mjs",
+    "protocol:check": "node protocol/scripts/generate.mjs --check",
+    "mobile": "npm --prefix mobile run start",
+    "typecheck": "npm --prefix mobile run typecheck",
+    "test": "npm --prefix mobile test"
+  }
+}
