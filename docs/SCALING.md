@@ -111,7 +111,20 @@ uninstall, but the promise in `docs/PRIVACY.md` says "after seven days", not
 This is the most important item on this list, because unlike the others it is a
 gap in a stated guarantee rather than a performance ceiling.
 
-### 2.5 One league, one hardcoded ball-per-over
+### 2.5 The buffer is sized for one outage, not several
+
+Five minutes covers about an over of markers held through a Wi-Fi drop. A longer
+outage - a flat phone battery, an app crash nobody noticed until drinks - loses
+the deliveries beyond that window, and the phone abandons those markers rather
+than sending requests the vest will refuse.
+
+*When it matters:* the first time somebody's phone dies mid-innings.
+*Fix:* the buffer is a config value and the disk has room for half an hour. The
+reason not to set it to half an hour today is that nothing has measured
+sustained encoder thermals yet, and a longer buffer does not help if the encoder
+has quietly throttled.
+
+### 2.6 One league, one hardcoded ball-per-over
 
 `BALLS_PER_OVER` is a constant in `matchStore.ts`. Fine for cricket. It is
 mentioned here only so nobody goes looking for a config value that does not

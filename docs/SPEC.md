@@ -6,6 +6,28 @@ Version 0.1 · Draft spec and build plan
 
 ---
 
+> **This is the original draft, kept as written.** Several decisions have changed
+> since, and where this document and an ADR disagree, the ADR is authoritative.
+> The significant ones:
+>
+> - **There is no BLE remote.** The umpire marks deliveries in the app. Phase 5
+>   is gone and the plan is seven phases, not eight. See
+>   [ADR 8](decisions/0008-remote-moves-into-the-app.md).
+> - **The vest records continuously** into a five-minute buffer rather than
+>   gating on a button; a press is a marker, not a trigger. Pre-roll is 5s, not
+>   3s. See [ADR 9](decisions/0009-continuous-buffer.md).
+> - **One repository, not four**, with the wire format generated from a single
+>   schema. See [ADR 1](decisions/0001-monorepo-with-generated-protocol.md).
+> - **Clips are keyed by camera as well as sequence**, so a second vest is
+>   additive. See [ADR 2](decisions/0002-clip-identity-includes-camera.md).
+> - **iOS is supported**, not deferred. See
+>   [ADR 7](decisions/0007-ios-support.md).
+>
+> The reasoning in the rest of this document - the optics, the timing budget, the
+> failure modes, the risk register - stands unchanged and is why it is kept.
+
+---
+
 ## Table of contents
 
 1. [What we are building](#1-what-we-are-building)

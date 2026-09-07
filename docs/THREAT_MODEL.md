@@ -1,7 +1,7 @@
 # Threat model
 
-Scope: one vest, one phone, one BLE remote, on a ground with twenty-two players
-and a boundary full of spectators. The cloud is out of scope until Phase 8.
+Scope: one vest and one phone, on a ground with twenty-two players and a
+boundary full of spectators. The cloud is out of scope until Phase 8.
 
 The framing that matters: the most valuable thing in this system is footage of
 people who did not consent to being filmed, and the most likely adversary is
@@ -18,6 +18,7 @@ network called `thirdeye-vest-01`.
 | Decision log | Outlives the video. Says what an umpire decided and when. |
 | Vest Wi-Fi passphrase | Grants access to the AP, and from there to every clip |
 | Request signing key (`psk`) | From Phase 6, the thing that stops an unauthorised client |
+| The rolling buffer | Five minutes of continuous footage of everyone in frame, held on the vest at all times. Larger than any single clip, and it exists whether or not anyone marked a delivery. |
 | Match availability | A vest that stops mid-match is a product failure, not a security one, but the same causes produce both |
 
 ---
@@ -65,18 +66,27 @@ that the phone had not actually received. The same HMAC closes this. The `ack`
 carries a SHA-256 the attacker would have to know, which raises the bar on the
 second case specifically.
 
-### The BLE remote
+### Delivery markers
 
-*Risk:* an attacker spoofs button presses, or replays them.
+The BLE remote is gone; the umpire marks deliveries in the app. That removes a
+radio, a battery and a spoofable unauthenticated link from the system entirely,
+which is a straightforward win.
 
-The consequence is nuisance: clips that start and stop at wrong times. The
-`counter` field detects dropped notifications but not replay, and there is no
-pairing authentication in the Phase 5 design. This is accepted: the cost of BLE
-bonding on a device with no display, against an attack whose payoff is a badly
-bounded clip, is not worth it.
+*Risk:* an unauthorised client on the access point sends markers of its own,
+producing clips of nothing or fragmenting real deliveries.
 
-*Not accepted, and mitigated:* a bouncing switch spamming the radio. Debounce
-happens in firmware, not on the vest.
+The consequence is nuisance rather than exposure - it makes clips worse, it does
+not reveal anything. The same Phase 6 request signing that closes the clip
+endpoint closes this, because a marker is just another signed request.
+
+*Worth noting:* because the vest records continuously, a hostile marker cannot
+destroy footage. It can only cause a bad cut, and the real delivery is still in
+the buffer to be grabbed. Gated recording did not have that property.
+
+*Accepted:* the umpire's own phone is now a single point of failure for
+recording, not just for review. A flat battery stops the match being recorded.
+That is an availability problem, not a security one, and the mitigation is
+organisational: a league-owned handset and a power bank.
 
 ### The phone
 
@@ -117,7 +127,8 @@ diagnostics screen is screenshotted.
 | Failure | Effect | Handling |
 |---|---|---|
 | Silent encoder throttle, 60 fps to 12 | Footage looks wrong, nobody knows why | `encoder_fps` is measured and surfaced in the connection pill; alert on any drop over 5% (Phase 6) |
-| Missed BLE notification | A clip with wrong boundaries | `counter` gap detection, plus both recovery transitions in the vest state machine |
+| A marker that never reaches the vest | A clip with wrong boundaries, or none | The buffer. The footage is not conditional on the message, so the marker is queued and replayed, and a missed press stays recoverable |
+| The umpire's phone dies | Recording stops, not just review | League-owned handset and a power bank. This got worse when the remote moved into the app. |
 | Phone storage full mid-match | Downloads fail, grey dots | Status dot makes it visible before a review is announced |
 | App killed, never reopened | Retention sweep never runs | Open gap; see `docs/SCALING.md` section 2.4 |
 
@@ -127,7 +138,7 @@ diagnostics screen is screenshotted.
 
 | Item | Phase | Severity if skipped |
 |---|---|---|
-| HMAC-signed requests to the vest | 6 | High. Anyone on the AP can pull clips. |
+| HMAC-signed requests to the vest | 5 | High. Anyone on the AP can pull clips, and send markers. |
 | Signed pairing payload | 6 | Low |
 | Background retention sweep | 6 | Medium. It is a gap in a stated promise. |
 | Vest-side purge of undelivered clips | 4 | Medium |

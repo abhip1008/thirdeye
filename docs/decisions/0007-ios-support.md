@@ -1,6 +1,8 @@
 # 7. iOS: free today, blocked later, and the block is not the UI
 
-**Status:** accepted, Phase 1
+**Status:** accepted, Phase 1. Amended by
+[ADR 10](0010-development-builds.md), which replaces Expo Go with real builds -
+and in doing so found two permissions this decision assumed were absent.
 **Relates to:** spec section 2 ("iOS - v2, Android first") and the iOS entry in
 the risk register
 
@@ -29,8 +31,14 @@ vest's access point.
 
 Everything else on the iOS list is already done in this commit range - the local
 network usage string, the ATS exception scoped to the vest's address and nothing
-else, file sharing disabled, and no microphone usage string so the microphone
-cannot be asked for at all.
+else, and file sharing disabled.
+
+> **Correction.** This originally claimed the microphone could not be asked for
+> because no usage string was declared. That was wrong: the camera plugin adds
+> `NSMicrophoneUsageDescription` by default, and Expo Go was hiding it because
+> the app's own Info.plist was never used. Both that string and a stray Face ID
+> one are now removed explicitly, and CI asserts their absence. See
+> [ADR 10](0010-development-builds.md).
 
 ## The one real blocker
 
