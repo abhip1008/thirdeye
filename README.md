@@ -313,10 +313,20 @@ it from the next ball onward. Import several and consecutive balls cycle through
 them.
 
 It goes through the system file picker, not the photo library, so the app never
-asks for access to your photos. On an iPhone, save the video to Files first
-(share sheet → Save to Files), or AirDrop it to the Mac and back. Imports are
-stored exactly like clips: app-private, kept out of iCloud, and removed by
-"Delete all data".
+asks for access to your photos. Imports are stored exactly like clips:
+app-private, kept out of iCloud, and removed by "Delete all data".
+
+**On a real iPhone**, save the video to Files first (share sheet → Save to
+Files), then pick it in the app.
+
+**In the simulator** the Files app is empty, so there is nothing to pick. Use
+the helper instead — it copies into the same folder the picker writes to, and
+the app cannot tell the difference:
+
+```bash
+./scripts/add-footage.sh over1.mp4 over2.mp4   # add
+./scripts/add-footage.sh --clear               # back to the test pattern
+```
 
 Large videos make the app sluggish. Anything over about 200 MB is worth
 shrinking first:
