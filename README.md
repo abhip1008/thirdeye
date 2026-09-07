@@ -2,11 +2,11 @@
 
 **An umpire-worn replay system for club cricket.**
 
-The umpire wears a vest with a camera in it. A two-button remote in their hand
-marks the start and end of each delivery. Every ball becomes a short video clip
-that is pushed to the umpire's phone during the thirty-odd seconds before the
-next ball. When a review is called, the clip is already on the phone. There is
-nothing to download and nothing to wait for.
+The umpire wears a vest with a camera in it and taps their phone once as the
+bowler runs in and once when the ball is dead. Every ball becomes a short video
+clip that reaches the phone during the thirty-odd seconds before the next ball.
+When a review is called, the clip is already there. There is nothing to download
+and nothing to wait for.
 
 Clips older than twelve balls are deleted automatically unless someone kept them.
 
@@ -38,7 +38,7 @@ Three properties separate this from pointing a phone at the game.
 
 | Property | Why it matters |
 |---|---|
-| **Zero operator burden** | Nobody starts or stops a recording. Two button presses per ball, with the hand that is already counting. |
+| **Almost no operator burden** | Nobody starts or stops a recording. Two taps per ball, on a control that fills the bottom of the screen and never moves. |
 | **Zero wait at review time** | The transfer happens in the gap between deliveries, not while eleven fielders watch a progress bar. |
 | **Nothing is kept** | Auto-purge after twelve balls answers the privacy objection, the storage cost, and the "are you filming me" conversation, all at once. |
 
@@ -66,29 +66,37 @@ Sell the no-ball and the gross-error case. Do not sell DRS.
 Four tiers.
 
 ```
-  UMPIRE          ON-BODY UNIT              LINK             REVIEW APP        AFTER MATCH
-    |                                                                          (offline
-    |                                                                           during play)
- [Remote] --BLE--> [ ROCK 5C + AR0234 ] ==Wi-Fi==> [ Android phone ] ------> [ Cloud ]
-                    - GStreamer capture  CONTROL    - React Native           - FastAPI
-                    - Pre-roll ring      (WebSocket)- SQLite                 - optional
-                    - Clip cutter        FILES      - 12-clip store          - deferred
-                    - FastAPI + nginx    (HTTP)     - Review player
+        ON-BODY UNIT                 LINK              PHONE            AFTER MATCH
+                                                                        (offline
+                                                                         during play)
+  [ ROCK 5C + AR0234 ]  <===Wi-Fi===>  [ iPhone or Android ]  ------>  [ Cloud ]
+   - records CONTINUOUSLY  markers -->  - the control          - FastAPI
+   - 5-minute buffer       <-- clips    - React Native         - optional
+   - cuts on a marker                   - SQLite               - deferred
+   - FastAPI + nginx                    - 12 clips, then gone
 ```
 
 **One delivery:**
 
 ```
-t=0s     Umpire presses START as the bowler turns.
-         The clip opens, reaching 3 seconds back into the pre-roll ring,
-         so a late press still catches the run-up.
-t=12s    Ball is dead. Umpire presses END. The file is already valid.
+t=0s     Umpire taps as the bowler runs in. The phone writes a marker
+         and sends it. The vest was already recording.
+t=12s    Ball is dead. Second tap. The vest cuts the clip out of its
+         buffer, reaching 5 seconds back so a late tap still catches
+         the run-up.
 t=12.4s  Vest announces the clip over the WebSocket.
 t=15s    Phone has the 9.5 MB, verifies the hash, commits it.
 t=40s    Next ball.
 ```
 
 The transfer uses 3 of the 30 to 40 available seconds. That is the whole design.
+
+**The vest never stops recording.** A tap is a marker, not a trigger - it only
+says which part of the buffer to keep. So a tap that cannot reach the vest is a
+late ball, not a lost one: the phone holds it, replays it when the link returns,
+and the clip turns up minutes after the delivery instead of never. A missed tap
+is recoverable for five minutes too, which matters because missed taps cluster
+around the deliveries where something dramatic happened.
 
 **A review:** the umpire opens the app, sees twelve clips with status dots, taps
 one, and it plays instantly. Technology consumes about two seconds of the ninety
@@ -99,9 +107,11 @@ part that must not be rushed.
 
 ## Current status
 
-**Phase 1 of 8 is complete.** Every package exists and builds, and the app runs
-on a phone with every screen working against a mock vest. There is no hardware
-yet, and none is needed to use the entire product.
+**Phase 1 of 7 is complete.** Every package exists and builds, and the app runs
+on a phone with every screen working against a mock vest.
+
+Since the umpire's control moved into the app, **the entire loop now runs with
+no hardware at all**: tap the button, get a clip, review it, mark a decision.
 
 ### What is verified
 
@@ -110,8 +120,10 @@ yet, and none is needed to use the entire product.
 | TypeScript, strict mode, unused locals and params on | 0 errors |
 | ESLint | clean |
 | Tests | 30 mobile, 10 vest, all passing |
-| Android production bundle | exports, 4.3 MB, sample clip included |
+| Android production bundle | exports, sample clip included |
 | iOS production bundle | exports, sample clip included |
+| iOS app compiles for real | Xcode build of the generated project |
+| Built app's permission surface | iOS: camera and local network only. Android: camera, internet, network state, vibrate. Everything else blocked, and CI asserts it. |
 | Expo Router route discovery | all 8 routes found under `src/app` |
 | Protocol generator | TypeScript and Python regenerate byte-identical |
 | Golden fixture | parses on both sides; three malformed shapes rejected on both sides |
@@ -151,33 +163,47 @@ Everything above is a Phase 1 acceptance item. Work through
 ### What you need
 
 - **Node 20 or newer** and npm
+- **Xcode** (free, Mac App Store) for iPhone, or **Android Studio** for Android
 - **Python 3.11+**, only if you want to run the vest scaffold
-- **An Android phone or an iPhone**, with the free **Expo Go** app installed,
-  on the same Wi-Fi as your computer
+- No hardware, no paid developer account
 
-You do **not** need Android Studio, Xcode, a paid developer account, or any
-hardware.
+### On your iPhone, once
 
-### The app
+1. **Settings → Privacy & Security → Developer Mode → on**, then restart the
+   phone. Required on iOS 16+, and easy to miss.
+2. Plug the phone in and trust the computer.
+
+### Build and run
 
 ```bash
 git clone https://github.com/abhip1008/thirdeye.git
 cd thirdeye/mobile
 npm install
-npx expo start
+npx expo run:ios --device       # or: npx expo run:android
 ```
 
-A QR code appears in the terminal.
+The first build takes a few minutes. After that, Metro keeps serving JavaScript,
+so edits reload instantly and you only rebuild when native config changes.
 
-- **Android:** open **Expo Go** and scan it from inside the app.
-- **iPhone:** point the built-in **Camera** app at it and tap the banner. (Expo
-  Go on iOS does not have its own scanner.)
+To work in Xcode directly, open `ios/ThirdEye.xcworkspace` and hit Run - it is a
+real Xcode project, with the real `Info.plist`, breakpoints and Instruments.
 
-The app builds and opens in about thirty seconds.
+> **A free Apple ID is enough.** The app expires after seven days and you
+> rebuild. The $99 account is only needed for the Wi-Fi-join entitlement in
+> Phase 3, and there's a workaround for that.
 
-> **If the phone cannot reach your computer** (guest Wi-Fi, VPN, corporate
-> network), run `npx expo start --tunnel` instead. It is slower but routes
-> around the network.
+### Why not Expo Go
+
+It still works (`npx expo start`), and it is still the fastest way to put the
+app in front of someone. But **Expo Go runs the JavaScript inside its own
+container**, with its own `Info.plist` and its own permissions - so none of this
+app's privacy configuration is active there. Blocked permissions, the iCloud
+exclusion, screenshot blocking, the app-private storage path: none of it.
+
+That is not academic. Building for real immediately revealed that the app was
+declaring a microphone usage string and a Face ID one, both added by config
+plugins, both contradicting what the documentation claimed. See
+[ADR 10](docs/decisions/0010-development-builds.md).
 
 ### Which platforms it runs on
 
@@ -219,11 +245,6 @@ python3 -m venv .venv
 curl -s localhost:8000/api/health
 ```
 
-### The remote firmware
-
-Nothing to run. `remote/include/protocol.h` defines the seven-byte BLE event
-format and is the only file Phase 1 needed. Firmware is Phase 5.
-
 ---
 
 ## A five-minute tour
@@ -262,6 +283,10 @@ a review and then discovering a grey dot is the worst thing that can happen to
 this product on a field.
 
 Also try:
+- **Open a clip and tap the control from there.** It follows you onto the review
+  screen on purpose: if the bowler starts running in while you are looking at the
+  last ball, a control that only lived on the list would mean navigating back
+  first, and you would miss the start.
 - **Pull down** to force a resync. Umpires do this reflexively when unsure, so it
   does something real.
 - **Tap the counter** to correct the over and ball inline. It will drift - the
@@ -311,7 +336,6 @@ thirdeye/
 ├── protocol/   the wire format, and the generator that keeps both sides honest
 ├── mobile/     the review app - React Native, Expo, TypeScript, Android first
 ├── vest/       on-body capture unit - Python, FastAPI, GStreamer      (scaffold)
-├── remote/     BLE button remote - C++, PlatformIO, ESP32-C3          (scaffold)
 ├── cloud/      optional post-match sync - FastAPI                     (deferred)
 └── docs/
     ├── SPEC.md          the full design and build plan, all 8 phases
@@ -324,6 +348,10 @@ thirdeye/
 One repository rather than four, because the vest and the phone describe the
 same wire format in two languages and the gap between them is where protocol
 bugs live. See [ADR 1](docs/decisions/0001-monorepo-with-generated-protocol.md).
+
+There is no `remote/` package. The Bluetooth button moved into the app; see
+[ADR 8](docs/decisions/0008-remote-moves-into-the-app.md) for what that bought
+and what it cost.
 
 ## How the code is put together
 
@@ -487,14 +515,15 @@ hardware is ordered. They are policy questions, not engineering ones.
 
 | Phase | Name | Ends when |
 |---|---|---|
-| **1** | **Foundations and UI** | **Done.** All packages build; the app runs on a device against mock data. |
-| 2 | Vest brings up | ROCK boots, makes its own Wi-Fi, records with hardware encoding |
-| 3 | The link | Phone connects to a real vest, WebSocket stays open, downloads a real file |
-| 4 | Clipping and pre-roll | A button press produces a correctly bounded clip with 3s of pre-roll |
-| 5 | The remote | Real ESP32, real buttons, both recovery paths |
-| 6 | Hardening | Retry, resume, retention, health, request signing, survives a pulled cable |
-| 7 | Field trial | Two overs of a real fixture, measured miss rate |
-| 8 | Cloud | Pinned clips upload after the match |
+| **1** | **Foundations and UI** | **Done.** All packages build; the app runs on a real device against a mock vest, and the umpire's control works end to end. |
+| 2 | Vest brings up | ROCK boots, makes its own Wi-Fi, records continuously with hardware encoding |
+| 3 | The link | Phone connects to a real vest, markers arrive, a real file downloads |
+| 4 | Buffer and cutting | A marker produces a correctly bounded clip, including one replayed after an outage |
+| 5 | Hardening | Retry, resume, retention, health, request signing, survives a pulled cable |
+| 6 | Field trial | Two overs of a real fixture, measured miss rate |
+| 7 | Cloud | Pinned clips upload after the match |
+
+Seven, not eight. Phase 5 was the Bluetooth remote, and there isn't one.
 
 ### The next thing to do, and it is not code
 
