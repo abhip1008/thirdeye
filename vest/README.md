@@ -15,10 +15,39 @@ was there the whole time.
 
 ## Status
 
-Phase 1 is scaffolding: the generated protocol models and a health endpoint,
-enough to prove the toolchain and give Phase 3 something to point at.
+The service is real: it records, cuts, serves and talks. Everything on the
+production path except where the pictures come from.
 
-Capture arrives in Phase 2, the link in Phase 3, clipping and pre-roll in Phase 4.
+That last exception is the point. Set `THIRDEYE_SOURCE` to a file or a test
+pattern and the whole system - buffer, cut, link, phone - runs on a laptop with
+no hardware at all. The camera is the last fake to be removed, not the first.
+
+```bash
+# a laptop, with a recording standing in for the camera
+THIRDEYE_SOURCE=file:../mobile/assets/mock/sample.mp4 \
+  ./.venv/bin/uvicorn thirdeye.main:app --host 0.0.0.0 --port 8000
+
+# the vest, once there is one
+THIRDEYE_SOURCE=camera:/dev/video0 THIRDEYE_ENCODER=h264_rkmpp \
+  ./.venv/bin/uvicorn thirdeye.main:app
+```
+
+Then point the phone at it: Settings, turn the mock vest off.
+
+## Checking it end to end
+
+```bash
+./.venv/bin/python scripts/smoke_test.py
+```
+
+Boots the service, waits for the buffer to fill, starts a match, sends the
+markers a phone would send, and then does what a phone does with the answer -
+fetches the clip with a Range request, checks the hash, and probes the file to
+confirm it is a real video rather than the right number of bytes. It also
+exercises the three cases that are easy to get quietly wrong: a resumed
+download, a missed start marker recovered from the buffer, and a marker so old
+its footage has been overwritten, which must be refused rather than turned into
+an empty clip.
 
 ## Run
 

@@ -49,7 +49,8 @@
               "NSExceptionAllowsInsecureHTTPLoads": true,
               "NSIncludesSubdomains": false
             }
-          }
+          },
+          "NSAllowsLocalNetworking": true
         },
         "UIFileSharingEnabled": false,
         "LSSupportsOpeningDocumentsInPlace": false,
