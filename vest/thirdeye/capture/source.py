@@ -45,6 +45,19 @@ class Source:
             raise FileNotFoundError(target)
         return cls(kind=kind, target=target)
 
+    def output_filters(self) -> list[str]:
+        """Make presentation timestamps climb, whatever the input does.
+
+        A looping file restarts its timestamps on every pass. Left alone that
+        breaks the keyframe expression the segmenter depends on, and segments
+        stop landing where they are asked to. Rebuilding timestamps from the
+        frame number makes the output monotonic no matter how often the input
+        starts over.
+        """
+        if self.kind == "file":
+            return ["-vf", "setpts=N/FRAME_RATE/TB"]
+        return []
+
     @property
     def is_camera(self) -> bool:
         return self.kind == "camera"

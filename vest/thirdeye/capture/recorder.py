@@ -90,6 +90,7 @@ class Recorder:
         codec = self.encoder or "libx264"
         args = [self.ffmpeg, "-hide_banner", "-loglevel", "warning", "-nostdin", "-y"]
         args += self.source.input_args()
+        args += self.source.output_filters()
         args += [
             "-an",  # No microphone, ever. See docs/PRIVACY.md.
             "-c:v", codec,

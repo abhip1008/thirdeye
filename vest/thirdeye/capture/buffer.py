@@ -41,15 +41,17 @@ class Segment:
 def segment_name(index: int, run_started_at: float) -> str:
     """`seg_00412_1757193021.220.mp4`.
 
-    The float is when the *recorder run* began, not when this segment did.
-    ffmpeg names files from a counter and cannot stamp each one with a wall
-    clock at millisecond resolution, so the run's start time is folded into
-    every name and the segment's own start is derived from its position in the
-    run. Segment length is fixed, which is what makes that arithmetic exact.
+    The float is when the *recorder run* began. It separates one run from the
+    next after a restart, so indices that continue across a restart are not
+    mistaken for one continuous stretch of time.
 
-    Putting both numbers in the name means the index survives a restart, a
-    crash, and someone poking around with `ls`, with no sidecar to keep
-    consistent.
+    The name deliberately does not carry the segment's own start. That was tried
+    and it was wrong: it required assuming every segment is exactly
+    `segment_seconds` long, and ffmpeg cuts on keyframes, so real segments run
+    slightly long or short. The error accumulates - after three minutes the
+    derived clock had drifted fifteen seconds behind the wall clock, and cuts
+    for deliveries that had definitely been recorded were being refused as
+    missing. Start times now come from the filesystem instead; see `segments`.
     """
     return f"seg_{index:05d}_{run_started_at:.3f}.mp4"
 
@@ -84,30 +86,37 @@ class RollingBuffer:
         if not self.directory.exists():
             return []
 
-        entries: list[tuple[int, float, Path]] = []
+        runs: dict[float, list[tuple[int, Path, float]]] = {}
         for path in self.directory.iterdir():
             parsed = parse_name(path)
-            if parsed is not None:
-                entries.append((parsed[0], parsed[1], path))
-        if not entries:
-            return []
+            if parsed is None:
+                continue
+            try:
+                closed_at = path.stat().st_mtime
+            except OSError:
+                continue  # vanished between listing and stat
+            runs.setdefault(parsed[1], []).append((parsed[0], path, closed_at))
 
-        first_index: dict[float, int] = {}
-        last_index: dict[float, int] = {}
-        for index, run, _ in entries:
-            first_index[run] = min(first_index.get(run, index), index)
-            last_index[run] = max(last_index.get(run, index), index)
-
-        segments = [
-            Segment(
-                path=path,
-                index=index,
-                started_at=run + (index - first_index[run]) * self.segment_seconds,
-                duration=self.segment_seconds,
-            )
-            for index, run, path in entries
-            if include_in_flight or index != last_index[run]
-        ]
+        segments: list[Segment] = []
+        for members in runs.values():
+            members.sort(key=lambda m: m[0])
+            for position, (index, path, closed_at) in enumerate(members):
+                in_flight = position == len(members) - 1
+                if in_flight and not include_in_flight:
+                    continue
+                # A segment ends when its file was last written, and begins when
+                # the previous one ended. The filesystem knows this exactly; the
+                # index does not, because segments land on keyframes rather than
+                # on a stopwatch.
+                started_at = members[position - 1][2] if position > 0 else closed_at - self.segment_seconds
+                segments.append(
+                    Segment(
+                        path=path,
+                        index=index,
+                        started_at=started_at,
+                        duration=max(0.001, closed_at - started_at),
+                    )
+                )
         return sorted(segments, key=lambda s: s.started_at)
 
     def earliest(self) -> float | None:
