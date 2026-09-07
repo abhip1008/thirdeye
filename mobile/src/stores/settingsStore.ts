@@ -4,14 +4,14 @@ import { defaults } from '@/config/appConfig';
 import { readAllSettings, writeSetting } from '@/db/settings';
 import { log } from '@/lib/log';
 
-export type MockSpeed = 'realistic' | 'fast' | 'frozen';
+export type MockSpeed = 'manual' | 'fast' | 'realistic';
 
 export interface Settings {
   prerollSeconds: number;
   timeoutSeconds: number;
   ringSize: number;
   pinRetentionDays: number;
-  /** The mock vest. Stays in the build until Phase 7, per the spec. */
+  /** The mock vest. Stays in the build until field trials. */
   mockEnabled: boolean;
   mockSpeed: MockSpeed;
   /** Blocks screenshots while a match is open. See privacy/screenGuard.ts. */
@@ -26,7 +26,7 @@ const INITIAL: Settings = {
   ringSize: defaults.ringSize,
   pinRetentionDays: defaults.pinRetentionDays,
   mockEnabled: true,
-  mockSpeed: 'fast',
+  mockSpeed: 'manual',
   screenGuard: true,
   noticeAcknowledged: false,
 };
@@ -37,10 +37,16 @@ interface SettingsStore extends Settings {
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => Promise<void>;
 }
 
+/**
+ * Seconds between auto-bowled deliveries. Zero means the mock vest waits for
+ * the umpire, which is now the default: the control is in the app, so you drive
+ * it. The auto modes exist for demonstrating a full over without standing there
+ * tapping.
+ */
 export const MOCK_INTERVALS: Record<MockSpeed, number> = {
-  realistic: 40,
+  manual: 0,
   fast: 10,
-  frozen: 0,
+  realistic: 40,
 };
 
 export const useSettings = create<SettingsStore>((set, get) => ({

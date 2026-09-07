@@ -6,12 +6,12 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { BallCounter } from '@/components/BallCounter';
 import { ClipRow } from '@/components/ClipRow';
 import { ConnectionPill } from '@/components/ConnectionPill';
-import { RecordingIndicator } from '@/components/RecordingIndicator';
 import { Button, EmptyState, Screen } from '@/components/ui';
 import { MockTransport } from '@/mock/mockTransport';
 import { disableScreenGuard, enableScreenGuard } from '@/privacy/screenGuard';
 import { useClips } from '@/stores/clipStore';
 import { useConnection } from '@/stores/connectionStore';
+import { useDelivery } from '@/stores/deliveryStore';
 import { useMatch } from '@/stores/matchStore';
 import { usePairing } from '@/stores/pairingStore';
 import { MOCK_INTERVALS, useSettings } from '@/stores/settingsStore';
@@ -48,6 +48,7 @@ export default function LiveScreen() {
   const settings = useSettings();
   const pairing = usePairing();
 
+  const delivery = useDelivery((s) => s.ctx);
   const [openRow, setOpenRow] = useState<number | null>(null);
   const [correcting, setCorrecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -86,6 +87,12 @@ export default function LiveScreen() {
   }, [match]);
 
   const held = useMemo(() => clips.filter((c) => c.status === 'ready').length, [clips]);
+
+  /* The phone owns the delivery state machine now, so the vest agreeing is not
+     news. The vest *disagreeing* is - it means a marker did not land, and the
+     umpire should know before they rely on the next clip. */
+  const vestDisagrees =
+    connection.state === 'connected' && connection.recording !== (delivery.state === 'recording');
 
   if (!match) {
     return (
@@ -135,6 +142,11 @@ export default function LiveScreen() {
           health={connection.health}
           onPress={() => router.push('/diagnostics')}
         />
+        {vestDisagrees && (
+          <Text style={[type.caption, s.disagree]}>
+            The vest does not agree about whether a ball is live. Check diagnostics.
+          </Text>
+        )}
       </View>
 
       {correcting ? (
@@ -153,13 +165,22 @@ export default function LiveScreen() {
         />
       )}
 
-      <RecordingIndicator active={connection.recording} />
-
       <View style={s.listHeader}>
         <Text style={[type.captionStrong, { color: colors.textMuted }]}>
           LAST {settings.ringSize} BALLS
         </Text>
-        <Text style={[type.numeralSmall, { color: colors.textMuted }]}>{held} ready</Text>
+        <View style={s.listHeaderRight}>
+          <Text style={[type.numeralSmall, { color: colors.textMuted }]}>{held} ready</Text>
+          <Pressable
+            onPress={() => transportRef.current?.grabLastSeconds()}
+            accessibilityRole="button"
+            accessibilityLabel="Grab the last twenty seconds"
+            hitSlop={10}
+            style={({ pressed }) => pressed && { opacity: 0.5 }}
+          >
+            <Text style={[type.captionStrong, { color: colors.accent }]}>GRAB ONE</Text>
+          </Pressable>
+        </View>
       </View>
 
       <FlatList
@@ -190,13 +211,6 @@ export default function LiveScreen() {
         )}
       />
 
-      <View style={s.footer}>
-        <Button
-          label="Grab the last 20 seconds"
-          variant="secondary"
-          onPress={() => transportRef.current?.grabLastSeconds()}
-        />
-      </View>
     </Screen>
   );
 }
@@ -336,6 +350,8 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  listHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
+  disagree: { color: colors.danger, paddingTop: space.sm },
   list: { flex: 1 },
   listEmpty: { flexGrow: 1 },
   footer: { paddingVertical: space.lg },

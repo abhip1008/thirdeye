@@ -141,8 +141,9 @@ export default function SettingsScreen() {
 
       <SectionLabel>Mock vest</SectionLabel>
       <Muted style={{ marginBottom: space.md }}>
-        Phase 1 has no hardware. The mock vest bowls on a timer so every part of the app can be
-        used and judged before a camera exists. This stays in the build until field trials.
+        There is no hardware yet. The mock vest answers your taps and cuts clips out of a pretend
+        buffer, so the whole loop works before a camera exists. It drops about one delivery in
+        twelve on purpose, so the grey dot is something you have seen before it matters.
       </Muted>
       <SettingRow label="Mock vest running" />
       <View style={s.switchRow}>
@@ -157,12 +158,14 @@ export default function SettingsScreen() {
           value={settings.mockSpeed}
           onChange={(v) => void settings.set('mockSpeed', v)}
           options={[
-            { value: 'realistic', label: '40s' },
-            { value: 'fast', label: '10s' },
-            { value: 'frozen', label: 'Frozen' },
+            { value: 'manual', label: 'You tap' },
+            { value: 'fast', label: 'Auto 10s' },
+            { value: 'realistic', label: 'Auto 40s' },
           ]}
         />
-        <Muted style={{ marginTop: space.sm }}>Seconds between deliveries.</Muted>
+        <Muted style={{ marginTop: space.sm }}>
+          Auto modes bowl on a timer, for showing someone a full over without tapping through it.
+        </Muted>
       </View>
 
       <SettingRow

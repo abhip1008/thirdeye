@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import { Button, Choice, Field, Muted, Screen, SectionLabel, Title } from '@/components/ui';
 import { recentVenues } from '@/db/queries';
 import { useClips } from '@/stores/clipStore';
+import { useDelivery } from '@/stores/deliveryStore';
 import { useMatch } from '@/stores/matchStore';
 import { usePairing } from '@/stores/pairingStore';
 import { useSettings } from '@/stores/settingsStore';
@@ -43,7 +44,9 @@ export default function SetupScreen() {
       ringSize: settings.ringSize,
     });
     useClips.getState().reset();
+    useDelivery.getState().reset();
     await useClips.getState().hydrate(match.id);
+    await useDelivery.getState().hydrate(match.id);
     router.replace('/live');
   };
 

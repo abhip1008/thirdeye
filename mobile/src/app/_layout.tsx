@@ -1,18 +1,21 @@
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { DeliveryBar } from '@/components/DeliveryBar';
 import { Screen, Body, Title } from '@/components/ui';
 import { getDb } from '@/db/client';
 import { log } from '@/lib/log';
 import { trimAuditLog } from '@/privacy/audit';
 import { useClips } from '@/stores/clipStore';
+import { useDelivery } from '@/stores/deliveryStore';
 import { useMatch } from '@/stores/matchStore';
 import { useSettings } from '@/stores/settingsStore';
 import { colors } from '@/theme/colors';
 import { space } from '@/theme/spacing';
+import { View } from 'react-native';
 
 /**
  * Boot order matters and is short enough to state:
@@ -25,9 +28,25 @@ import { space } from '@/theme/spacing';
  * Step 4 runs on every launch, not on a timer and not when the vest asks.
  * If this phone never sees a vest again, the clips still expire on schedule.
  */
+/**
+ * Screens where the delivery control belongs.
+ *
+ * The clip list, obviously - but the review player too. If the umpire is
+ * looking at the last ball between deliveries and the bowler starts running in,
+ * a control that only lived on the list would mean navigating back first, and
+ * they would miss the start. Making it the one thing that never leaves the
+ * screen removes that failure entirely.
+ *
+ * It is deliberately absent from pairing, setup, settings and diagnostics: on
+ * those screens a stray tap would open a delivery nobody meant to start.
+ */
+const CONTROL_ROUTES = ['/live', '/clip'];
+
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const pathname = usePathname();
+  const match = useMatch((state) => state.match);
 
   useEffect(() => {
     (async () => {
@@ -40,6 +59,7 @@ export default function RootLayout() {
         if (match) {
           await useClips.getState().hydrate(match.id);
           await useClips.getState().sweep();
+          await useDelivery.getState().hydrate(match.id);
         }
         await trimAuditLog();
 
@@ -76,13 +96,16 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.bg },
-            animation: 'fade',
-          }}
-        />
+        <View style={{ flex: 1, backgroundColor: colors.bg }}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.bg },
+              animation: 'fade',
+            }}
+          />
+          {match && CONTROL_ROUTES.some((r) => pathname.startsWith(r)) && <DeliveryBar />}
+        </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

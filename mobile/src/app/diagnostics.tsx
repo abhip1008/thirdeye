@@ -6,6 +6,7 @@ import { Button, Muted, Screen, SectionLabel, SettingRow } from '@/components/ui
 import { LogEntry, log } from '@/lib/log';
 import { AuditRow, recentAudit } from '@/privacy/audit';
 import { useConnection } from '@/stores/connectionStore';
+import { useDelivery } from '@/stores/deliveryStore';
 import { colors } from '@/theme/colors';
 import { radius, space } from '@/theme/spacing';
 import { type } from '@/theme/typography';
@@ -19,6 +20,7 @@ import { type } from '@/theme/typography';
  */
 export default function DiagnosticsScreen() {
   const connection = useConnection();
+  const queued = useDelivery((s) => s.queued);
   const [lines, setLines] = useState<LogEntry[]>(log.tail());
   const [trail, setTrail] = useState<AuditRow[]>([]);
 
@@ -40,6 +42,21 @@ export default function DiagnosticsScreen() {
           <SettingRow label="Firmware" value={connection.firmware ?? '—'} />
           <SettingRow label="Protocol" value={connection.vestProtocol ? `v${connection.vestProtocol}` : '—'} />
           <SettingRow label="Round trip" value={connection.rttMs !== null ? `${connection.rttMs} ms` : '—'} />
+          <SettingRow
+            label="Clock offset"
+            hint="Applied to every delivery marker, so the vest gets its own time."
+            value={`${connection.clockOffset >= 0 ? '+' : ''}${connection.clockOffset.toFixed(2)} s`}
+          />
+          <SettingRow
+            label="Buffer"
+            hint="How far back the vest can still cut a clip."
+            value={connection.bufferSeconds !== null ? `${connection.bufferSeconds} s` : '—'}
+          />
+          <SettingRow
+            label="Markers waiting"
+            hint="Taps written down but not yet acknowledged by the vest."
+            value={String(queued)}
+          />
           {connection.protocolMismatch && (
             <Muted style={{ color: colors.danger }}>
               The vest speaks a newer protocol than this build. Update the app.
