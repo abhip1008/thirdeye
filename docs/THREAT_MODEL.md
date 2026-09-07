@@ -1,7 +1,7 @@
 # Threat model
 
 Scope: one vest and one phone, on a ground with twenty-two players and a
-boundary full of spectators. The cloud is out of scope until Phase 8.
+boundary full of spectators. The cloud is out of scope until Phase 7.
 
 The framing that matters: the most valuable thing in this system is footage of
 people who did not consent to being filmed, and the most likely adversary is

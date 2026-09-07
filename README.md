@@ -564,14 +564,35 @@ hardware is ordered. They are policy questions, not engineering ones.
 | Phase | Name | Ends when |
 |---|---|---|
 | **1** | **Foundations and UI** | **Done.** All packages build; the app runs on a real device against a mock vest, and the umpire's control works end to end. |
-| 2 | Vest brings up | ROCK boots, makes its own Wi-Fi, records continuously with hardware encoding |
-| 3 | The link | Phone connects to a real vest, markers arrive, a real file downloads |
+| 2 | Vest brings up | The board boots, makes its own Wi-Fi, records continuously with hardware encoding |
+| 3 | The link | Phone reaches a real vest, markers arrive, a real file downloads |
 | 4 | Buffer and cutting | A marker produces a correctly bounded clip, including one replayed after an outage |
-| 5 | Hardening | Retry, resume, retention, health, request signing, survives a pulled cable |
-| 6 | Field trial | Two overs of a real fixture, measured miss rate |
-| 7 | Cloud | Pinned clips upload after the match |
+| 5 | Hardening | Retry, resume, retention, health, signed requests; survives a pulled cable |
+| 6 | Field trial | Two overs of a real fixture, measured miss rate. **This is the gate.** |
+| 7 | Cloud and consent | Kept clips upload; retention policy decided; opt-in research retention exists |
 
-Seven, not eight. Phase 5 was the Bluetooth remote, and there isn't one.
+Seven, not the spec's eight. Phase 5 was the Bluetooth remote, and there isn't
+one.
+
+### What is deliberately not on it
+
+Automated decisions. In particular **no LBW trajectory projection**, which the
+original spec called optically impossible at this pixel density and which
+[ADR 11](docs/decisions/0011-roadmap.md) works through with the arithmetic. The
+ball is six pixels at twenty metres, the camera is on a breathing chest, and the
+error bars come out wider than the stumps. A wrong verdict would also discredit
+the calls that *are* reliable.
+
+Assistance is scoped but unscheduled, and starts with the **front-foot no-ball**
+rather than ball tracking: the crease is one to two metres from the lens, the
+call is fully objective, and it is the one club umpires get wrong most often.
+None of it begins before Phase 6 passes.
+
+One thing to settle before any of it: **the privacy model and model training are
+in direct conflict.** "Nothing is kept" is what makes a league say yes, and you
+cannot train on footage you deleted. That needs an explicit opt-in research
+mode, which is a much larger consent conversation than the notice screen has
+today.
 
 ### The next thing to do, and it is not code
 

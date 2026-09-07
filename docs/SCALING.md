@@ -136,9 +136,11 @@ exist.
 
 | Not built | Why not, and what it would cost later |
 |---|---|
-| Multi-tenant cloud | Phase 8, and optional even then. Nothing on match day may depend on it. |
+| Multi-tenant cloud | Phase 7, and optional even then. Nothing on match day may depend on it. |
 | User accounts | There is no user. The phone is the identity. Adding accounts means adding a data controller, which is a privacy decision before it is an engineering one. |
 | Clip thumbnails | `thumb_path` exists in the schema and is always null. Generating them costs CPU on a phone that is already downloading; the ball number is a better index than a 15-pixel-wide picture of grass. |
-| Offline queue for cloud sync | Phase 8. The `synced_at` column exists. |
+| Offline queue for cloud sync | Phase 7. The `synced_at` column exists. |
 | iOS | Android first, per the spec. iOS needs `NEHotspotConfiguration`, a local network usage description and an ATS exception, and that is a week, not an afternoon. |
 | Web build | `expo-sqlite` and `expo-secure-store` both degrade on web, and there is no umpire holding a laptop. |
+| Any automated decision | [ADR 11](decisions/0011-roadmap.md). Scoped, unscheduled, and gated on the field trial. The attachment points are written down there so nothing speculative has to be built in the meantime. |
+| Research retention | The same ADR. It is a consent decision before it is an engineering one, and it belongs in Phase 7. |

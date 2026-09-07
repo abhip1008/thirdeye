@@ -22,6 +22,8 @@ Version 0.1 · Draft spec and build plan
 >   additive. See [ADR 2](decisions/0002-clip-identity-includes-camera.md).
 > - **iOS is supported**, not deferred. See
 >   [ADR 7](decisions/0007-ios-support.md).
+> - **The phase plan has changed** and automated decisions are off it. See
+>   [ADR 11](decisions/0011-roadmap.md).
 >
 > The reasoning in the rest of this document - the optics, the timing budget, the
 > failure modes, the risk register - stands unchanged and is why it is kept.

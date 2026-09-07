@@ -31,7 +31,15 @@ export const isProtected = (clip: Clip): boolean => clip.pinned || clip.reviewed
 export const isBeyondRing = (clip: Clip, newestSeq: number, ringSize: number): boolean =>
   clip.seq <= newestSeq - ringSize;
 
-/** The whole decision, in the order the rules are stated in docs/PRIVACY.md. */
+/**
+ * The whole decision, in the order the rules are stated in docs/PRIVACY.md.
+ *
+ * This is the single chokepoint for whether footage of a person continues to
+ * exist. If a research-retention mode is ever added - see ADR 11, which argues
+ * it is a consent decision before it is an engineering one - it attaches here
+ * as one more branch and nowhere else. Anything that spares a clip somewhere
+ * further up is a bug, because it would spare it silently.
+ */
 export function shouldPurge(
   clip: Clip,
   newestSeq: number,
