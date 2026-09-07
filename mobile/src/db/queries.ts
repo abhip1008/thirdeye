@@ -1,7 +1,14 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { Clip, Match, Review } from '@/types/clip';
-import type { AppealType, ClipStatus, Decision, PinReason, UmpireEnd } from '@/types/protocol';
+import type {
+  AppealType,
+  ClipStatus,
+  Decision,
+  MarkEdge,
+  PinReason,
+  UmpireEnd,
+} from '@/types/protocol';
 
 import { getDb } from './client';
 
@@ -252,6 +259,79 @@ export async function reviewForClip(
 ): Promise<Review | null> {
   const all = await listReviews(matchId);
   return all.find((r) => r.cameraId === cameraId && r.seq === seq) ?? null;
+}
+
+/* ---------- delivery markers ---------- */
+
+export interface StoredMarker {
+  id: number;
+  matchId: string;
+  seq: number;
+  edge: MarkEdge;
+  at: number;
+  createdAt: number;
+  attempts: number;
+}
+
+export async function insertMarker(
+  matchId: string,
+  seq: number,
+  edge: MarkEdge,
+  at: number
+): Promise<number> {
+  const db = await getDb();
+  const res = await db.runAsync(
+    'INSERT INTO markers (match_id, seq, edge, at, created_at) VALUES (?, ?, ?, ?, ?)',
+    matchId,
+    seq,
+    edge,
+    at,
+    Date.now() / 1000
+  );
+  return res.lastInsertRowId;
+}
+
+/** Everything the vest has not acknowledged, oldest first. Order matters: a
+ *  burst replayed after an outage must arrive as start, end, start, end. */
+export async function unsentMarkers(matchId: string): Promise<StoredMarker[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{
+    id: number; match_id: string; seq: number; edge: string;
+    at: number; created_at: number; attempts: number;
+  }>(
+    'SELECT * FROM markers WHERE match_id = ? AND sent = 0 ORDER BY id ASC',
+    matchId
+  );
+  return rows.map((r) => ({
+    id: r.id, matchId: r.match_id, seq: r.seq, edge: r.edge as MarkEdge,
+    at: r.at, createdAt: r.created_at, attempts: r.attempts,
+  }));
+}
+
+export async function markMarkerSent(id: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE markers SET sent = 1 WHERE id = ?', id);
+}
+
+export async function noteMarkerAttempt(id: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE markers SET attempts = attempts + 1 WHERE id = ?', id);
+}
+
+/** Give up on a marker whose footage the vest can no longer reach. */
+export async function abandonMarker(id: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE markers SET sent = 1, attempts = attempts + 1 WHERE id = ?', id);
+}
+
+/** Highest delivery number this match has seen, so a restart resumes counting. */
+export async function highestMarkerSeq(matchId: string): Promise<number> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ top: number | null }>(
+    'SELECT MAX(seq) AS top FROM markers WHERE match_id = ?',
+    matchId
+  );
+  return row?.top ?? 0;
 }
 
 /* ---------- raw access for the audit module ---------- */

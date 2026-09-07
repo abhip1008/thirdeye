@@ -4,6 +4,7 @@ import { defaults } from '@/config/appConfig';
 import { log } from '@/lib/log';
 import type { Transport } from '@/net/transport';
 import type {
+  ClientMessage,
   ConnectionState,
   HealthSnapshot,
   ServerMessage,
@@ -12,7 +13,6 @@ import type {
 import { PROTOCOL_VERSION } from '@/types/protocol';
 
 import { useClips } from './clipStore';
-import { useMatch } from './matchStore';
 
 /**
  * Owns the control channel and nothing else.
@@ -32,6 +32,8 @@ interface ConnectionStore {
   vestProtocol: number | null;
   umpireEnd: UmpireEnd | null;
   ringSize: number | null;
+  /** Depth of the vest's rolling buffer. How long a queued marker stays usable. */
+  bufferSeconds: number | null;
 
   health: HealthSnapshot | null;
   recording: boolean;
@@ -40,9 +42,25 @@ interface ConnectionStore {
   /** Set when the vest speaks a protocol version this build cannot understand. */
   protocolMismatch: boolean;
 
+  /**
+   * Seconds to add to this phone's clock to get the vest's.
+   *
+   * Every marker is stamped in vest time, so the vest never has to track a
+   * per-client offset and a second phone in v2 needs no extra work. Estimated
+   * from the heartbeat: the pong carries the vest's own clock, and the round
+   * trip says roughly when it was taken.
+   */
+  clockOffset: number;
+  /** Round trip of the sample the offset came from. Lower is a better estimate. */
+  clockOffsetRttMs: number | null;
+
   attach: (transport: Transport) => void;
   detach: () => void;
   resync: () => void;
+  /** Vest-clock seconds. Falls back to phone time before the first pong. */
+  vestNow: () => number;
+  /** Returns false when the link is down, so the caller can queue instead. */
+  send: (message: ClientMessage) => boolean;
 }
 
 let active: Transport | null = null;
@@ -58,11 +76,14 @@ export const useConnection = create<ConnectionStore>((set, get) => ({
   vestProtocol: null,
   umpireEnd: null,
   ringSize: null,
+  bufferSeconds: null,
   health: null,
   recording: false,
   lastMessageAt: null,
   rttMs: null,
   protocolMismatch: false,
+  clockOffset: 0,
+  clockOffsetRttMs: null,
 
   attach: (transport) => {
     get().detach();
@@ -103,6 +124,19 @@ export const useConnection = create<ConnectionStore>((set, get) => ({
     active?.send({ v: PROTOCOL_VERSION, type: 'resync', since_seq: highest });
     log.debug('link', `resync since ${highest}`);
   },
+
+  vestNow: () => Date.now() / 1000 + get().clockOffset,
+
+  send: (message) => {
+    if (!active || get().state !== 'connected') return false;
+    try {
+      active.send(message);
+      return true;
+    } catch (e) {
+      log.warn('link', 'send failed', { type: message.type, error: String(e) });
+      return false;
+    }
+  },
 }));
 
 function handle(
@@ -120,6 +154,7 @@ function handle(
         vestProtocol: message.protocol,
         umpireEnd: message.end ?? null,
         ringSize: message.ring_size ?? null,
+        bufferSeconds: message.buffer_seconds ?? null,
         protocolMismatch: message.protocol > PROTOCOL_VERSION,
       });
       if (message.protocol > PROTOCOL_VERSION) {
@@ -128,10 +163,11 @@ function handle(
       break;
 
     case 'session_state':
+      // Confirmation, not the source of truth. The phone owns the delivery
+      // state machine now; this only says the vest agrees. A disagreement is
+      // worth surfacing rather than acting on, because the umpire's tap
+      // happened whatever the vest thinks.
       set({ recording: message.state === 'recording' });
-      // A START press is a delivery. Count it here rather than when the clip
-      // lands, so the counter is right even for the balls that produce nothing.
-      if (message.state === 'recording') useMatch.getState().countDelivery();
       break;
 
     case 'clip_ready':
@@ -146,9 +182,26 @@ function handle(
       set({ health: message.health });
       break;
 
-    case 'pong':
-      set({ rttMs: Math.round((Date.now() / 1000 - message.t) * 1000) });
+    case 'pong': {
+      const now = Date.now() / 1000;
+      const rttMs = Math.round((now - message.t) * 1000);
+      set({ rttMs });
+
+      // Keep the sample with the shortest round trip rather than the newest.
+      // A long round trip means more uncertainty about when the vest actually
+      // read its clock, so a quiet moment gives a better estimate than a busy
+      // one - and the offset drifts far more slowly than the network varies.
+      if (message.vest_time !== undefined) {
+        const best = get().clockOffsetRttMs;
+        if (best === null || rttMs <= best) {
+          set({
+            clockOffset: message.vest_time - (message.t + (now - message.t) / 2),
+            clockOffsetRttMs: rttMs,
+          });
+        }
+      }
       break;
+    }
   }
   void get;
 }

@@ -18,6 +18,9 @@ import { log, redact } from '@/lib/log';
 export type AuditEventType =
   | 'match.started'
   | 'match.ended'
+  | 'delivery.marked'
+  | 'delivery.queued'
+  | 'delivery.abandoned'
   | 'clip.announced'
   | 'clip.ready'
   | 'clip.failed'

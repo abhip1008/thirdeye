@@ -106,6 +106,34 @@ export const migrations: Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    name: 'delivery_markers',
+    sql: `
+      -- The umpire's taps, held on the phone until the vest has them.
+      --
+      -- This table is why a Wi-Fi outage is survivable. The vest records
+      -- continuously, so footage is never conditional on a marker arriving;
+      -- these rows are what let the phone replay an over's worth of markers
+      -- once the link comes back and still get the clips.
+      --
+      -- Persisted rather than kept in memory because the app being killed
+      -- mid-over is an ordinary event, not an exceptional one.
+      CREATE TABLE markers (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        match_id   TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+        seq        INTEGER NOT NULL,
+        edge       TEXT NOT NULL,          -- start | end
+        at         REAL NOT NULL,          -- vest clock, offset already applied
+        created_at REAL NOT NULL,          -- phone clock, for diagnostics only
+        sent       INTEGER NOT NULL DEFAULT 0,
+        attempts   INTEGER NOT NULL DEFAULT 0
+      );
+
+      -- The flush path reads exactly this, in order.
+      CREATE INDEX idx_markers_unsent ON markers(match_id, sent, id);
+    `,
+  },
 ];
 
 export const LATEST_VERSION = migrations[migrations.length - 1].version;
