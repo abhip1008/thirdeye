@@ -266,34 +266,41 @@ seconds. Tap **I understand**.
 filled in, because this screen gets used at the toss with a captain waiting.
 Tap **Start match**.
 
-**4. Watch the live screen fill.** This is where the umpire spends the match.
-Within a few seconds you should see:
+**4. Bowl an over.** This is the part that matters, and the whole point of the
+control moving into the app: **tap the big blue button at the bottom** as if a
+bowler were running in, wait ten seconds, and tap it again.
 
-- **RECORDING** appear and disappear as the mock vest bowls
-- the over.ball counter tick up
-- clip rows arriving at the top, each moving through
-  *Waiting* -> *Getting it* -> *Checking* -> **Ready**
+It should turn red and say **BALL IN PLAY** with a running clock, then go back
+to blue, and a clip row should appear at the top moving through
+*Waiting* -> *Getting it* -> **Ready**.
+
+Do that six times. Along the way you should see:
+
 - roughly one delivery in twelve producing no clip at all, or a **Not here** row
-- badges for *Timed out*, *Recovered* and *Grabbed*
-- after twelve balls, the oldest clip dropping off the bottom
+- occasional notes like *Ran on to 40 seconds* or *Start was missed*
+- **after twelve balls, the oldest clip dropping off the bottom** - deleted, not
+  hidden, unless you kept it or reviewed it
 
-The **status dot** is the point of the whole screen, not decoration. An umpire
-must be able to see that a clip exists *before* announcing a review. Announcing
-a review and then discovering a grey dot is the worst thing that can happen to
-this product on a field.
+Two things worth trying deliberately:
+
+- **Forget to end a ball.** Tap once and leave it. After 40 seconds the delivery
+  closes itself, the clip is noted as having run on, and the next tap starts
+  cleanly.
+- **Turn off Wi-Fi mid-over**, tap through two more deliveries, then turn it
+  back on. The bar says how many taps are waiting *and that the footage is
+  safe*, and the clips arrive late rather than never. That is the buffer doing
+  the job it was added for.
 
 Also try:
 - **Open a clip and tap the control from there.** It follows you onto the review
-  screen on purpose: if the bowler starts running in while you are looking at the
-  last ball, a control that only lived on the list would mean navigating back
-  first, and you would miss the start.
-- **Pull down** to force a resync. Umpires do this reflexively when unsure, so it
-  does something real.
-- **Tap the counter** to correct the over and ball inline. It will drift - the
-  phone counts button presses and the vest has no idea what a wide is.
-- **Long-press a row** for Keep / Try again. Note that nothing covers the list:
-  no modal ever appears on this screen. If an umpire has to dismiss a dialog
-  while a captain is arguing with them, the product has failed.
+  screen on purpose: if the bowler starts running in while you are looking at
+  the last ball, a control that only lived on the list would mean navigating
+  back first, and you would miss the start.
+- **Long-press a row** for Keep / Try again. Nothing covers the list: no modal
+  ever appears on this screen. If an umpire has to dismiss a dialog while a
+  captain is arguing with them, the product has failed.
+- **Pull down** to force a resync. Umpires do this reflexively when unsure, so
+  it does something real.
 
 **5. Use your own footage.** The bundled clip is a synthetic test pattern. It is
 exactly right for checking that frame stepping is exact, and useless for the
@@ -329,16 +336,22 @@ and the one thing worth checking carefully:
   not move, frame stepping is not exact and that is a Phase 1 blocker.** The
   clip is synthetic precisely so this is checkable by eye.
 - Hold **+1** to repeat.
-- Drag the scrubber. The frame readout under it tells you where you are.
-- Try **1/4x** and **1/8x**.
-- Toggle **Stump line** and **Bail height** and drag them with one thumb. They
-  are per clip, not global: two deliveries are filmed from two slightly
-  different chest angles, and a line carried over from the last one is worse
-  than no line at all.
-- Tap **Out**, **Not out** or **Unclear**. This writes to the decision log,
-  marks the clip reviewed, and keeps it. This is not a formality - the decision
-  log is what a league looks at after a season, and it is the only thing that
-  survives when the video does not.
+- Drag the scrubber. The read-out under it counts frames, not seconds, because
+  the only reason to look at it is to confirm a step moved by exactly one.
+- Tap **Full speed** to open the speed options, and try **Quarter** or
+  **Eighth**. The panel closes when you pick one.
+- Tap **Lines** for the stump line and bail height, then drag them with one
+  thumb. They are per clip, not global: two deliveries are filmed from two
+  slightly different chest angles, and a line carried over from the last one is
+  worse than no line at all.
+- Tap **Decide** for Out / Not out / Unclear. This writes to the decision log,
+  marks the clip reviewed, and keeps it. Not a formality - the decision log is
+  what a league looks at after a season, and it is the only thing that survives
+  when the video does not.
+
+Three controls are on screen at rest: step back, play, step forward. Everything
+else sits behind one word, because an umpire under pressure should be looking at
+the ball rather than reading a toolbar.
 
 **7. Check the privacy panel.** Settings -> the grey box at the top says exactly
 what is on the phone right now and for how long. This is the answer to the only
