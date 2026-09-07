@@ -107,11 +107,18 @@ part that must not be rushed.
 
 ## Current status
 
-**Phase 1 of 7 is complete.** Every package exists and builds, and the app runs
-on a phone with every screen working against a mock vest.
+**Phase 1 is complete, and Phases 3 and 4 are built.** Phase 2 is the only one
+that needs hardware.
 
-Since the umpire's control moved into the app, **the entire loop now runs with
-no hardware at all**: tap the button, get a clip, review it, mark a decision.
+The vest service is real - it records continuously, cuts clips out of its buffer
+when the phone marks a delivery, and serves them over HTTP with resume. The
+phone has a real WebSocket client and a real verifying downloader. **The only
+thing still pretending is where the pictures come from**: point
+`THIRDEYE_SOURCE` at a video file and the entire system runs on a laptop.
+
+That is deliberate. The camera is the last fake to be removed, not the first, so
+everything downstream of it can be built and tested before any hardware is
+bought.
 
 ### What is verified
 
@@ -148,6 +155,9 @@ a device.
 - **Expo Go compatibility** for `expo-video` and `expo-secure-store`. Both ship
   in the Expo Go client for SDK 57, so this should be fine, but it is an
   assumption rather than an observation.
+- **The phone talking to the real vest.** Both halves are verified on their own -
+  the vest end to end, the phone's client by typecheck and review - but the two
+  have not yet been connected to each other.
 - **iOS specifically.** It bundles, and the platform differences are handled in
   code, but nothing has been run on an actual iPhone. The thing most worth
   checking there is that clips survive between launches, because iOS stores them
