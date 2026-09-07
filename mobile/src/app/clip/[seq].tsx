@@ -30,9 +30,14 @@ const SPEEDS = [
 /**
  * The review player.
  *
- * Three controls on screen: step back, play, step forward. Everything else is
- * behind a single word that opens one panel at a time, because an umpire under
- * pressure should be looking at the ball rather than reading a toolbar.
+ * Two buttons on screen, both for stepping a frame. Play and pause are the
+ * video itself - tapping the picture is the most obvious gesture there is, and
+ * a triangle appears over it when paused so nobody has to guess. Speed, the
+ * reference lines and the decision are three quiet words that each open one
+ * panel.
+ *
+ * An umpire under pressure should be looking at the ball, not reading a
+ * toolbar.
  *
  * Frame stepping is why anyone opens this at all, and it is the one thing the
  * build plan warned could quietly not work. `expo-video` seeks exactly by
@@ -189,8 +194,20 @@ export default function ClipScreen() {
 
       <View style={s.stage}>
         {playable ? (
-          <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityLabel="Play or pause">
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={togglePlay}
+            accessibilityRole="button"
+            accessibilityLabel={playing ? 'Pause' : 'Play'}
+          >
             <VideoView style={StyleSheet.absoluteFill} player={player} nativeControls={false} contentFit="contain" />
+            {!playing && (
+              /* The only hint that the picture is tappable. Shown when paused,
+                 which is most of a review, and gone the moment it is playing. */
+              <View style={s.playHint} pointerEvents="none">
+                <Text style={s.playGlyph}>▶</Text>
+              </View>
+            )}
           </Pressable>
         ) : (
           <View style={s.notReady}>
@@ -219,14 +236,13 @@ export default function ClipScreen() {
             }}
           />
 
-          {/* Three keys. Step, play, step. */}
+          {/* Two keys, both stepping. Play and pause are the picture itself. */}
           <View style={s.transport}>
-            <Key label="−1" hint="One frame back" onPress={() => step(-1)} repeat />
-            <Key label={playing ? 'Pause' : 'Play'} hint={playing ? 'Pause' : 'Play'} onPress={togglePlay} primary />
-            <Key label="+1" hint="One frame forward" onPress={() => step(1)} repeat />
+            <Key label="Back a frame" onPress={() => step(-1)} />
+            <Key label="On a frame" onPress={() => step(1)} />
           </View>
 
-          {/* Everything else is one word that opens one panel. */}
+          {/* Three quiet words, one panel at a time. */}
           <View style={s.tabs}>
             <Tab
               label={speedLabel}
@@ -287,11 +303,9 @@ export default function ClipScreen() {
   );
 }
 
-function Key({
-  label, hint, onPress, primary = false, repeat = false,
-}: {
-  label: string; hint: string; onPress: () => void; primary?: boolean; repeat?: boolean;
-}) {
+/** Both keys step a frame, and both repeat on hold - stepping through an impact
+ *  means twenty presses, not two. */
+function Key({ label, onPress }: { label: string; onPress: () => void }) {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stop = () => {
     if (timer.current) clearInterval(timer.current);
@@ -302,14 +316,14 @@ function Key({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={hint}
+      accessibilityLabel={label}
       onPress={onPress}
-      onLongPress={repeat ? () => { stop(); timer.current = setInterval(onPress, 90); } : undefined}
+      onLongPress={() => { stop(); timer.current = setInterval(onPress, 90); }}
       onPressOut={stop}
       delayLongPress={280}
-      style={({ pressed }) => [s.key, primary && s.keyPrimary, pressed && { opacity: 0.7 }]}
+      style={({ pressed }) => [s.key, pressed && { opacity: 0.7 }]}
     >
-      <Text style={[type.bodyStrong, { color: primary ? colors.textOnDark : colors.text }]}>{label}</Text>
+      <Text style={[type.bodyStrong, { color: colors.text }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -369,17 +383,27 @@ const s = StyleSheet.create({
   notReady: { padding: space.xl, alignItems: 'center' },
   controls: { paddingTop: space.md, gap: space.lg },
 
-  transport: { flexDirection: 'row', gap: space.sm, paddingHorizontal: space.xl },
+  playHint: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playGlyph: { fontSize: 46, color: colors.textOnDark, opacity: 0.82 },
+
+  transport: { flexDirection: 'row', gap: space.md, paddingHorizontal: space.xl },
   key: {
     flex: 1,
-    minHeight: TOUCH_MIN,
+    minHeight: TOUCH_MIN + 4,
     borderRadius: radius.md,
     borderWidth: 1.5,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  keyPrimary: { flex: 1.8, backgroundColor: colors.accent, borderColor: colors.accent },
 
   tabs: {
     flexDirection: 'row',

@@ -98,13 +98,12 @@ export function Scrubber({
         <View style={[s.thumb, { left: Math.max(0, fraction * width - 11) }]} />
       </View>
 
-      {/* Frames, not a clock. The only reason to read this line is to confirm a
-          single step moved by exactly one. */}
+      {/* Frames, not a clock, and nothing else. The only reason to read this
+          line is to confirm a single step moved by exactly one. */}
       <View style={s.readout}>
         <Text style={[type.numeralSmall, { color: colors.textMuted }]}>
           frame {frame} of {totalFrames}
         </Text>
-        <Text style={[type.numeralSmall, { color: colors.textMuted }]}>{clock(duration)}</Text>
       </View>
     </View>
   );
@@ -124,5 +123,5 @@ const s = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.bg,
   },
-  readout: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.xs },
+  readout: { alignItems: 'center', marginTop: space.xs },
 });

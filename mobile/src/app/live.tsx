@@ -135,8 +135,10 @@ export default function LiveScreen() {
       </View>
 
       <View style={s.listHead}>
+        {/* Just a count. "N of the last 12" reads as nonsense once kept and
+            reviewed clips push the total past the ring size. */}
         <Text style={[type.caption, { color: colors.textMuted }]}>
-          {ready} of the last {settings.ringSize} balls ready
+          {ready === 0 ? 'Nothing yet' : `${ready} ready`}
         </Text>
         <Pressable
           onPress={() => transportRef.current?.grabLastSeconds()}
