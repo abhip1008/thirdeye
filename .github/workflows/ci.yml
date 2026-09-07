@@ -69,6 +69,8 @@ jobs:
 
             if ('NSMicrophoneUsageDescription' in plist) fail('iOS declares a microphone usage string');
             if ('NSFaceIDUsageDescription' in plist) fail('iOS declares a Face ID usage string');
+            if ('NSPhotoLibraryUsageDescription' in plist) fail('iOS asks for the photo library');
+            if ('NSPhotoLibraryAddUsageDescription' in plist) fail('iOS asks to write to the photo library');
             if (!blocked.includes('android.permission.RECORD_AUDIO')) fail('Android does not block RECORD_AUDIO');
             if (c.android?.allowBackup !== false) fail('Android auto-backup is not disabled');
             if (plist.UIFileSharingEnabled !== false) fail('iOS exposes clips through the Files app');

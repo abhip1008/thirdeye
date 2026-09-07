@@ -5,6 +5,7 @@ import { StyleSheet, Switch, Text, View } from 'react-native';
 import { Header } from '@/components/Header';
 import { Button, Choice, Divider, Muted, Screen, SectionLabel, SettingRow } from '@/components/ui';
 import { megabytes } from '@/lib/format';
+import { clearFootage, footageBytes, importFootage, listFootage } from '@/privacy/footage';
 import { purgeEverything } from '@/privacy/retention';
 import { totalBytesHeld } from '@/privacy/storage';
 import { useClips } from '@/stores/clipStore';
@@ -33,6 +34,7 @@ export default function SettingsScreen() {
 
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [storageToken, setStorageToken] = useState(0);
+  const [importNote, setImportNote] = useState<string | null>(null);
 
   /* A synchronous filesystem read, recomputed when the clip count changes or
      after a wipe. Derived rather than held in state: an effect that sets state
@@ -41,6 +43,10 @@ export default function SettingsScreen() {
   // filesystem and takes no arguments.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const bytes = useMemo(() => totalBytesHeld(), [clips.length, storageToken]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const footage = useMemo(() => listFootage(), [storageToken]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const footageSize = useMemo(() => footageBytes(), [storageToken]);
 
   const kept = clips.filter((c) => c.pinned).length;
 
@@ -167,6 +173,59 @@ export default function SettingsScreen() {
           Auto modes bowl on a timer, for showing someone a full over without tapping through it.
         </Muted>
       </View>
+
+      <Divider />
+
+      <SectionLabel>Your own footage</SectionLabel>
+      <Muted style={{ marginBottom: space.md }}>
+        The bundled clip is a test pattern - right for checking that frame stepping is exact, and
+        useless for the question that decides whether this works at all: is the impact zone even in
+        shot from an umpire&apos;s chest? Import a video and every delivery plays it instead.
+      </Muted>
+      <SettingRow
+        label={footage.length > 0 ? 'Imported videos' : 'No videos imported'}
+        value={footage.length > 0 ? `${footage.length} · ${megabytes(footageSize)}` : undefined}
+        hint={
+          footage.length > 1
+            ? 'Deliveries cycle through them, so consecutive balls do not look identical.'
+            : undefined
+        }
+      />
+      <Button
+        label="Add a video"
+        variant="secondary"
+        onPress={() =>
+          void importFootage().then((r) => {
+            setStorageToken((n) => n + 1);
+            setImportNote(
+              r.error
+                ? `Could not import: ${r.error}`
+                : r.cancelled
+                  ? null
+                  : `Imported ${r.imported} video${r.imported === 1 ? '' : 's'}. The next ball will use it.`
+            );
+          })
+        }
+        style={{ marginTop: space.sm }}
+      />
+      {footage.length > 0 && (
+        <Button
+          label="Remove imported videos"
+          variant="ghost"
+          onPress={() => {
+            const removed = clearFootage();
+            setStorageToken((n) => n + 1);
+            setImportNote(`Removed ${removed}. Back to the test pattern.`);
+          }}
+          style={{ marginTop: space.xs }}
+        />
+      )}
+      {importNote ? <Muted style={{ marginTop: space.sm }}>{importNote}</Muted> : null}
+      <Muted style={{ marginTop: space.sm, marginBottom: space.lg }}>
+        Chosen through the system file picker, one file at a time, so the app never needs access to
+        your photo library. Imports are stored like clips are: app-private, kept out of the platform
+        backup, and removed by &ldquo;Delete all data&rdquo; below.
+      </Muted>
 
       <SettingRow
         label="Diagnostics"

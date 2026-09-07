@@ -295,7 +295,32 @@ Also try:
   no modal ever appears on this screen. If an umpire has to dismiss a dialog
   while a captain is arguing with them, the product has failed.
 
-**5. Open a clip.** Tap any **Ready** row. This is the screen that matters most,
+**5. Use your own footage.** The bundled clip is a synthetic test pattern. It is
+exactly right for checking that frame stepping is exact, and useless for the
+question that decides whether this product works at all: *is the impact zone
+even in shot from an umpire's chest?*
+
+Record something - ideally a phone strapped to your chest through a couple of
+overs - then **Settings → Your own footage → Add a video**. Every delivery plays
+it from the next ball onward. Import several and consecutive balls cycle through
+them.
+
+It goes through the system file picker, not the photo library, so the app never
+asks for access to your photos. On an iPhone, save the video to Files first
+(share sheet → Save to Files), or AirDrop it to the Mac and back. Imports are
+stored exactly like clips: app-private, kept out of iCloud, and removed by
+"Delete all data".
+
+Large videos make the app sluggish. Anything over about 200 MB is worth
+shrinking first:
+
+```bash
+ffmpeg -i chest-cam.mov -vf scale=1280:-2 -c:v libx264 -crf 26 -an over1.mp4
+```
+
+The `-an` drops the audio, which the vest will not record either.
+
+**6. Open a clip.** Tap any **Ready** row. This is the screen that matters most,
 and the one thing worth checking carefully:
 
 - Press **+1** and **−1**. The yellow marker in the black bar at the bottom of
@@ -315,16 +340,16 @@ and the one thing worth checking carefully:
   log is what a league looks at after a season, and it is the only thing that
   survives when the video does not.
 
-**6. Check the privacy panel.** Settings -> the grey box at the top says exactly
+**7. Check the privacy panel.** Settings -> the grey box at the top says exactly
 what is on the phone right now and for how long. This is the answer to the only
 question anyone outside the project ever asks.
 
-**7. End the match.** Tap **End** on the live screen. The summary shows what was
+**8. End the match.** Tap **End** on the live screen. The summary shows what was
 recorded, what was reviewed, and what was kept. The primary action deletes
 things, which is unusual and deliberate: the promise made to twenty-two players
 comes due the moment the match ends, and it should take one tap.
 
-**8. The real acceptance test.** Hand the phone to someone non-technical and
+**9. The real acceptance test.** Hand the phone to someone non-technical and
 have them tap through it. If they understand the product, Phase 1 is done.
 
 ---

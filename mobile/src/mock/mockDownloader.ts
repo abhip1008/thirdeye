@@ -1,4 +1,5 @@
 import type { DownloadRequest, DownloadResult, Downloader } from '@/net/transport';
+import { footageForSeq } from '@/privacy/footage';
 
 import { MOCK_CLIP_PATH } from './sampleClip';
 
@@ -44,7 +45,11 @@ export class MockDownloader implements Downloader {
       throw new Error('Connection lost');
     }
 
-    return { localPath: MOCK_CLIP_PATH, bytesLocal: req.bytes };
+    // Your own footage if you have imported any, otherwise the synthetic test
+    // clip. Checked per delivery rather than once at construction, so importing
+    // a video takes effect on the very next ball.
+    const own = footageForSeq(req.seq);
+    return { localPath: own ?? MOCK_CLIP_PATH, bytesLocal: req.bytes };
   }
 }
 

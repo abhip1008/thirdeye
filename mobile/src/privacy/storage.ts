@@ -37,7 +37,7 @@ import { log } from '@/lib/log';
 export const PART_SUFFIX = '.part';
 
 /** See the note above: iOS Documents is backed up to iCloud, Caches is not. */
-const storageRoot = (): Directory => (Platform.OS === 'ios' ? Paths.cache : Paths.document);
+export const storageRoot = (): Directory => (Platform.OS === 'ios' ? Paths.cache : Paths.document);
 
 const matchesRoot = () => new Directory(storageRoot(), 'matches');
 

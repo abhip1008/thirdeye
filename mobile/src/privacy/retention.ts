@@ -132,6 +132,8 @@ export async function purgeUnpinned(matchId: string): Promise<PurgeResult> {
 /** The nuclear option, offered in settings. Files first, then rows. */
 export async function purgeEverything(): Promise<void> {
   deleteAllMatchFiles();
+  const { clearFootage } = await import('./footage');
+  clearFootage();
   const { wipeAllData } = await import('@/db/client');
   await wipeAllData();
   // Audited after the wipe so the record of the wipe survives it.

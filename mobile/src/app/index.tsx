@@ -1,10 +1,11 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Body, Button, Field, Muted, Screen, Title } from '@/components/ui';
 import { log } from '@/lib/log';
+import { useMatch } from '@/stores/matchStore';
 import { parsePairingQr, usePairing } from '@/stores/pairingStore';
 import { useSettings } from '@/stores/settingsStore';
 import { colors } from '@/theme/colors';
@@ -21,6 +22,7 @@ import { type } from '@/theme/typography';
 export default function PairScreen() {
   const router = useRouter();
   const pairing = usePairing();
+  const openMatch = useMatch((s) => s.match);
   const acknowledged = useSettings((s) => s.noticeAcknowledged);
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<'scan' | 'manual'>('scan');
@@ -33,6 +35,14 @@ export default function PairScreen() {
     void pairing.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* A match already running means the app was killed mid-over - a phone that
+     locked in a pocket, or ran out of memory behind the camera. Going back to
+     pairing would make the umpire tap through setup again while a bowler waits.
+     Straight to the live screen instead. */
+  if (openMatch && openMatch.endedAt === null) {
+    return <Redirect href="/live" />;
+  }
 
   const proceed = () => router.push(acknowledged ? '/setup' : '/notice');
 
