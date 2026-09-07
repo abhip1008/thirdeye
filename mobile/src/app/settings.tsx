@@ -147,9 +147,13 @@ export default function SettingsScreen() {
 
       <SectionLabel>Mock vest</SectionLabel>
       <Muted style={{ marginBottom: space.md }}>
-        There is no hardware yet. The mock vest answers your taps and cuts clips out of a pretend
-        buffer, so the whole loop works before a camera exists. It drops about one delivery in
-        twelve on purpose, so the grey dot is something you have seen before it matters.
+        The mock vest answers your taps and cuts clips out of a pretend buffer, so the whole loop
+        works before a camera exists. It drops about one delivery in twelve on purpose, so the grey
+        dot is something you have seen before it matters.
+      </Muted>
+      <Muted style={{ marginBottom: space.md }}>
+        Turn it off to talk to a real vest at {pairing.host ?? 'the paired address'} instead. The
+        app is the same either way; only what is behind the link changes.
       </Muted>
       <SettingRow label="Mock vest running" />
       <View style={s.switchRow}>

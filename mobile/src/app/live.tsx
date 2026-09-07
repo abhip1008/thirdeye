@@ -6,9 +6,14 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { ClipRow } from '@/components/ClipRow';
 import { EmptyState, Screen } from '@/components/ui';
 import { percent } from '@/lib/format';
+import { MockDownloader } from '@/mock/mockDownloader';
 import { MockTransport } from '@/mock/mockTransport';
+import { HttpDownloader } from '@/net/httpDownloader';
+import type { Transport } from '@/net/transport';
+import { startVestSession } from '@/net/vestApi';
+import { WebSocketTransport } from '@/net/wsClient';
 import { disableScreenGuard, enableScreenGuard } from '@/privacy/screenGuard';
-import { useClips } from '@/stores/clipStore';
+import { setDownloader, useClips } from '@/stores/clipStore';
 import { useConnection } from '@/stores/connectionStore';
 import { useMatch } from '@/stores/matchStore';
 import { usePairing } from '@/stores/pairingStore';
@@ -47,7 +52,7 @@ export default function LiveScreen() {
 
   const [openRow, setOpenRow] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const transportRef = useRef<MockTransport | null>(null);
+  const mockRef = useRef<MockTransport | null>(null);
 
   useEffect(() => {
     if (settings.screenGuard) void enableScreenGuard();
@@ -56,22 +61,46 @@ export default function LiveScreen() {
     };
   }, [settings.screenGuard]);
 
-  /* Attach the mock vest. Phase 3 swaps MockTransport for the WebSocket client. */
+  /* The one place that decides whether this app is talking to a real vest or a
+     pretend one. Everything below it - the stores, the marker queue, the
+     retention rules, every screen - is written against the interfaces and does
+     not know the difference. */
   useEffect(() => {
-    if (!match || !settings.mockEnabled) return;
-    const transport = new MockTransport({
-      matchId: match.id,
-      cameraId: pairing.cameraId ?? match.cameraId,
-      ballIntervalSeconds: MOCK_INTERVALS[settings.mockSpeed],
-      startingSeq: useClips.getState().clips[0]?.seq ?? 0,
+    if (!match) return;
+    let cancelled = false;
+
+    if (settings.mockEnabled) {
+      const transport = new MockTransport({
+        matchId: match.id,
+        cameraId: pairing.cameraId ?? match.cameraId,
+        ballIntervalSeconds: MOCK_INTERVALS[settings.mockSpeed],
+        startingSeq: useClips.getState().clips[0]?.seq ?? 0,
+      });
+      mockRef.current = transport;
+      setDownloader(new MockDownloader());
+      useConnection.getState().attach(transport);
+      return () => {
+        useConnection.getState().detach();
+        mockRef.current = null;
+      };
+    }
+
+    const host = pairing.host;
+    if (!host) return;
+
+    const transport: Transport = new WebSocketTransport(host);
+    setDownloader(new HttpDownloader(host));
+    // The vest refuses markers outside a match, so tell it one has begun before
+    // the umpire can tap anything. If it is unreachable the taps still queue.
+    void startVestSession(host, match.venue ?? '').then(() => {
+      if (!cancelled) useConnection.getState().attach(transport);
     });
-    transportRef.current = transport;
-    useConnection.getState().attach(transport);
+
     return () => {
+      cancelled = true;
       useConnection.getState().detach();
-      transportRef.current = null;
     };
-  }, [match, settings.mockEnabled, settings.mockSpeed, pairing.cameraId]);
+  }, [match, settings.mockEnabled, settings.mockSpeed, pairing.cameraId, pairing.host]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -140,15 +169,19 @@ export default function LiveScreen() {
         <Text style={[type.caption, { color: colors.textMuted }]}>
           {ready === 0 ? 'Nothing yet' : `${ready} ready`}
         </Text>
-        <Pressable
-          onPress={() => transportRef.current?.grabLastSeconds()}
-          accessibilityRole="button"
-          accessibilityLabel="Grab the last twenty seconds"
-          hitSlop={10}
-          style={({ pressed }) => pressed && { opacity: 0.5 }}
-        >
-          <Text style={[type.caption, { color: colors.accent }]}>Grab one</Text>
-        </Pressable>
+        {settings.mockEnabled && (
+          /* Only the pretend vest can conjure a clip out of nowhere. Against a
+             real one this needs a recover endpoint, which is Phase 5. */
+          <Pressable
+            onPress={() => mockRef.current?.grabLastSeconds()}
+            accessibilityRole="button"
+            accessibilityLabel="Grab the last twenty seconds"
+            hitSlop={10}
+            style={({ pressed }) => pressed && { opacity: 0.5 }}
+          >
+            <Text style={[type.caption, { color: colors.accent }]}>Grab one</Text>
+          </Pressable>
+        )}
       </View>
 
       <FlatList
