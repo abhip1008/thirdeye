@@ -64,9 +64,33 @@ class Settings(BaseSettings):
     """nginx terminates :80 and proxies here. Binding to loopback means the
     FastAPI process is not directly reachable from the access point."""
 
+    # What the encoder is actually producing. Reported in clip metadata so the
+    # phone can step exactly one frame without guessing the rate.
+    resolution: str = "1920x1200"
+    fps: float = 60.0
+    codec: str = "h264"
+
+    segment_seconds: float = 1.0
+    """Length of one buffer fragment, and therefore the largest error a cut can
+    have at its edges. Short segments cost more files and buy more precision."""
+
+    source: str = "pattern:testsrc=size=1280x800:rate=30"
+    """Where pictures come from: `camera:/dev/video0` on the vest, or a file or
+    test pattern anywhere else. The camera is the last fake to be removed."""
+
+    encoder: str | None = None
+    """Force a specific ffmpeg encoder. On the vest this is the hardware one;
+    left unset it falls back to libx264, which is right everywhere else."""
+
     heartbeat_seconds: float = 5.0
     """Also carries the clock sync. Every pong reports the vest's own time, and
     the phone uses it to stamp markers in vest time rather than phone time."""
+
+
+    @property
+    def preroll_s_effective(self) -> float:
+        """Pre-roll can never exceed what the buffer holds."""
+        return min(self.preroll_seconds, self.buffer_seconds / 2)
 
 
 settings = Settings()
