@@ -32,7 +32,8 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ],
       "allowBackup": false
     },
@@ -61,11 +62,17 @@
     "plugins": [
       "expo-router",
       "expo-video",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       [
         "expo-camera",
         {
           "cameraPermission": "Third Eye uses the camera once, to scan the pairing code on the vest. It never records video on the phone.",
+          "microphonePermission": false,
           "recordAudioAndroid": false
         }
       ]

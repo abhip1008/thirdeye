@@ -36,6 +36,45 @@ jobs:
       - run: npm run lint
       - run: npm test
 
+      # Both bundles, on every push. Development happens on one platform at a
+      # time; this is what stops the other one quietly rotting in between.
+      - run: npx expo export --platform ios --output-dir /tmp/export-ios
+      - run: npx expo export --platform android --output-dir /tmp/export-android
+
+  native-config:
+    name: Native config
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      # The privacy configuration is only real once it reaches a built app.
+      # These are the claims docs/PRIVACY.md makes; assert them rather than
+      # trusting that a plugin left them alone.
+      - name: The app must not be able to ask for a microphone
+        run: |
+          npx expo config --type public --json > /tmp/config.json
+          node -e "
+            const c = require('/tmp/config.json').expo ?? require('/tmp/config.json');
+            const plist = c.ios?.infoPlist ?? {};
+            const blocked = c.android?.blockedPermissions ?? [];
+            const fail = (m) => { console.error('FAIL: ' + m); process.exit(1); };
+
+            if ('NSMicrophoneUsageDescription' in plist) fail('iOS declares a microphone usage string');
+            if ('NSFaceIDUsageDescription' in plist) fail('iOS declares a Face ID usage string');
+            if (!blocked.includes('android.permission.RECORD_AUDIO')) fail('Android does not block RECORD_AUDIO');
+            if (c.android?.allowBackup !== false) fail('Android auto-backup is not disabled');
+            if (plist.UIFileSharingEnabled !== false) fail('iOS exposes clips through the Files app');
+            console.log('ok: the built app can only ask for the camera and the local network');
+          "
+
   vest:
     name: Vest
     runs-on: ubuntu-latest
