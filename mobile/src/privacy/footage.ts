@@ -1,4 +1,3 @@
-import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File } from 'expo-file-system';
 
 import { log } from '@/lib/log';
@@ -67,9 +66,19 @@ export interface ImportResult {
   error?: string;
 }
 
-/** Opens the system file picker. Needs no permission; the person picks. */
+/**
+ * Opens the system file picker. Needs no permission; the person picks.
+ *
+ * The picker is loaded here rather than at the top of the file on purpose. This
+ * module sits underneath the clip store, which sits underneath every screen, so
+ * a top-level import of a native module means a build that predates it cannot
+ * start the app at all - it dies at launch with a stack trace instead of
+ * running with one feature missing. Importing a test video is the least
+ * important thing this app does and it should fail alone.
+ */
 export async function importFootage(): Promise<ImportResult> {
   try {
+    const DocumentPicker = await import('expo-document-picker');
     const result = await DocumentPicker.getDocumentAsync({
       type: 'video/*',
       multiple: true,

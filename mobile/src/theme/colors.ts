@@ -12,6 +12,8 @@ export const colors = {
   surface: '#F4F5F7',
   surfaceSunk: '#EAECEF',
   border: '#D6D9DE',
+  /** Hairline between list rows. Lighter than a border you are meant to notice. */
+  rule: '#E7E9ED',
   borderStrong: '#B3B9C2',
 
   text: '#111418',

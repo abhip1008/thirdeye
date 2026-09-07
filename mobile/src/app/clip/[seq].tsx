@@ -3,38 +3,43 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { DecisionBar } from '@/components/DecisionBar';
 import { Header } from '@/components/Header';
 import { OverlayCanvas, OverlayState, defaultOverlay } from '@/components/OverlayCanvas';
-import { PlayerControls } from '@/components/PlayerControls';
 import { Scrubber } from '@/components/Scrubber';
 import { StatusLabel } from '@/components/StatusDot';
 import { EmptyState, Muted, Screen } from '@/components/ui';
 import { FALLBACK_FPS } from '@/config/appConfig';
 import { insertReview, reviewForClip } from '@/db/queries';
-import { overBall } from '@/lib/format';
 import { log } from '@/lib/log';
 import { resolveVideoSource } from '@/mock/sampleAsset';
 import { audit } from '@/privacy/audit';
 import { useClips } from '@/stores/clipStore';
 import { useMatch } from '@/stores/matchStore';
 import { colors } from '@/theme/colors';
-import { radius, space } from '@/theme/spacing';
+import { TOUCH_MIN, radius, space } from '@/theme/spacing';
 import { type } from '@/theme/typography';
 import type { Decision } from '@/types/protocol';
 
-const SPEEDS = [1, 0.5, 0.25, 0.125] as const;
-const SPEED_LABELS = ['1x', '1/2x', '1/4x', '1/8x'];
+const SPEEDS = [
+  { rate: 1, label: 'Full speed' },
+  { rate: 0.5, label: 'Half' },
+  { rate: 0.25, label: 'Quarter' },
+  { rate: 0.125, label: 'Eighth' },
+] as const;
 
 /**
- * The review player. This is where the ninety seconds of a review actually go.
+ * The review player.
  *
- * Frame stepping is the feature that makes it worth opening at all, and it is
- * the one thing the spec warns can quietly not work. `expo-video` seeks exactly
- * by default - its `seekTolerance` is zero unless you widen it - so setting
- * `currentTime` to `t +/- 1/fps` lands on the requested frame rather than the
- * nearest keyframe. The bundled sample has a marker that moves a fixed distance
- * every single frame, so this is verifiable by eye rather than by hope.
+ * Three controls on screen: step back, play, step forward. Everything else is
+ * behind a single word that opens one panel at a time, because an umpire under
+ * pressure should be looking at the ball rather than reading a toolbar.
+ *
+ * Frame stepping is why anyone opens this at all, and it is the one thing the
+ * build plan warned could quietly not work. `expo-video` seeks exactly by
+ * default - its seek tolerance is zero unless widened - so setting the position
+ * to `t +/- 1/fps` lands on the requested frame rather than the nearest
+ * keyframe. The bundled sample has a marker that advances a fixed distance every
+ * frame, so this is checkable by eye rather than by hope.
  */
 export default function ClipScreen() {
   const router = useRouter();
@@ -61,14 +66,13 @@ export default function ClipScreen() {
   const [position, setPosition] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
+  const [panel, setPanel] = useState<'none' | 'speed' | 'lines' | 'decision'>('none');
   const [overlay, setOverlay] = useState<OverlayState>(defaultOverlay);
   const [decision, setDecision] = useState<Decision | null>(null);
   const scrubbing = useRef(false);
 
   const duration = clip?.duration_s ?? player?.duration ?? 0;
 
-  /* Poll rather than subscribe: one timer, no event plumbing, and it stops
-     the moment the screen goes away. */
   useEffect(() => {
     const id = setInterval(() => {
       if (!player || scrubbing.current) return;
@@ -86,12 +90,12 @@ export default function ClipScreen() {
   }, [match, clip]);
 
   const seekTo = useCallback(
-    (seconds: number) => {
+    (secondsInto: number) => {
       if (!player) return;
-      const clamped = Math.min(Math.max(0, seconds), Math.max(0, duration - frameStep));
+      const clamped = Math.min(Math.max(0, secondsInto), Math.max(0, duration - frameStep));
       // Assignment is how expo-video seeks; the player is a handle on a native
-      // object, not React state. Its default seekTolerance is zero, which is
-      // what makes this land on the requested frame rather than a keyframe.
+      // object, not React state, and its default tolerance is zero - which is
+      // what makes this land on the requested frame.
       // eslint-disable-next-line react-hooks/immutability
       player.currentTime = clamped;
       setPosition(clamped);
@@ -122,6 +126,7 @@ export default function ClipScreen() {
       // Same as above: a native player handle, not a React value.
       // eslint-disable-next-line react-hooks/immutability
       if (player) player.playbackRate = rate;
+      setPanel('none');
     },
     [player]
   );
@@ -130,6 +135,7 @@ export default function ClipScreen() {
     async (value: Decision) => {
       if (!match || !clip) return;
       setDecision(value);
+      setPanel('none');
       await insertReview({
         matchId: match.id,
         cameraId: clip.camera_id,
@@ -155,18 +161,21 @@ export default function ClipScreen() {
     return (
       <Screen>
         <Header title="Clip" />
-        <EmptyState title="That clip is gone" body="It rolled out of the buffer and was deleted." />
+        <EmptyState title="That clip is gone" body="It rolled past twelve balls and was deleted." />
       </Screen>
     );
   }
 
   const playable = clip.status === 'ready' && !!clip.localPath;
+  const speedLabel = SPEEDS.find((s2) => s2.rate === speed)?.label ?? 'Full speed';
+  const lineCount = Number(overlay.showStumpLine) + Number(overlay.showBailLine);
+  const decisionLabel =
+    decision === 'out' ? 'Out' : decision === 'not_out' ? 'Not out' : decision === 'inconclusive' ? 'Unclear' : 'Decide';
 
   return (
     <Screen>
       <Header
         title={`Ball ${clip.seq}`}
-        subtitle={`Over ${overBall(clip.over, clip.ball_in_over)}`}
         action={{
           label: clip.pinned ? 'Kept' : 'Keep',
           onPress: () =>
@@ -180,17 +189,8 @@ export default function ClipScreen() {
 
       <View style={s.stage}>
         {playable ? (
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={togglePlay}
-            accessibilityLabel="Play or pause"
-          >
-            <VideoView
-              style={StyleSheet.absoluteFill}
-              player={player}
-              nativeControls={false}
-              contentFit="contain"
-            />
+          <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityLabel="Play or pause">
+            <VideoView style={StyleSheet.absoluteFill} player={player} nativeControls={false} contentFit="contain" />
           </Pressable>
         ) : (
           <View style={s.notReady}>
@@ -204,96 +204,159 @@ export default function ClipScreen() {
       </View>
 
       {playable && (
-        <>
-          <View style={s.controls}>
-            <Scrubber
-              position={position}
-              duration={duration}
-              fps={fps}
-              onScrub={seekTo}
-              onScrubStart={() => {
-                scrubbing.current = true;
-                player?.pause();
-              }}
-              onScrubEnd={() => {
-                scrubbing.current = false;
-              }}
-            />
+        <View style={s.controls}>
+          <Scrubber
+            position={position}
+            duration={duration}
+            fps={fps}
+            onScrub={seekTo}
+            onScrubStart={() => {
+              scrubbing.current = true;
+              player?.pause();
+            }}
+            onScrubEnd={() => {
+              scrubbing.current = false;
+            }}
+          />
 
-            <PlayerControls
-              playing={playing}
-              onTogglePlay={togglePlay}
-              onStepBack={() => step(-1)}
-              onStepForward={() => step(1)}
-              onJumpStart={() => seekTo(0)}
-              onJumpEnd={() => seekTo(duration)}
-            />
-
-            <View style={s.speedRow}>
-              {SPEEDS.map((rate, i) => (
-                <Pressable
-                  key={rate}
-                  onPress={() => changeSpeed(rate)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: speed === rate }}
-                  accessibilityLabel={`Speed ${SPEED_LABELS[i]}`}
-                  style={({ pressed }) => [
-                    s.speed,
-                    speed === rate && s.speedOn,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      type.bodyStrong,
-                      { color: speed === rate ? colors.textOnDark : colors.text },
-                    ]}
-                  >
-                    {SPEED_LABELS[i]}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <View style={s.overlayRow}>
-              <Toggle
-                label="Stump line"
-                on={overlay.showStumpLine}
-                onPress={() => setOverlay({ ...overlay, showStumpLine: !overlay.showStumpLine })}
-              />
-              <Toggle
-                label="Bail height"
-                on={overlay.showBailLine}
-                onPress={() => setOverlay({ ...overlay, showBailLine: !overlay.showBailLine })}
-              />
-            </View>
+          {/* Three keys. Step, play, step. */}
+          <View style={s.transport}>
+            <Key label="−1" hint="One frame back" onPress={() => step(-1)} repeat />
+            <Key label={playing ? 'Pause' : 'Play'} hint={playing ? 'Pause' : 'Play'} onPress={togglePlay} primary />
+            <Key label="+1" hint="One frame forward" onPress={() => step(1)} repeat />
           </View>
 
-          <DecisionBar value={decision} onChange={(d) => void recordDecision(d)} />
-        </>
+          {/* Everything else is one word that opens one panel. */}
+          <View style={s.tabs}>
+            <Tab
+              label={speedLabel}
+              open={panel === 'speed'}
+              onPress={() => setPanel(panel === 'speed' ? 'none' : 'speed')}
+            />
+            <Tab
+              label={lineCount > 0 ? `Lines · ${lineCount}` : 'Lines'}
+              open={panel === 'lines'}
+              onPress={() => setPanel(panel === 'lines' ? 'none' : 'lines')}
+            />
+            <Tab
+              label={decisionLabel}
+              open={panel === 'decision'}
+              marked={decision !== null}
+              onPress={() => setPanel(panel === 'decision' ? 'none' : 'decision')}
+            />
+          </View>
+
+          {panel === 'speed' && (
+            <Panel>
+              {SPEEDS.map((o) => (
+                <Option
+                  key={o.rate}
+                  label={o.label}
+                  selected={speed === o.rate}
+                  onPress={() => changeSpeed(o.rate)}
+                />
+              ))}
+            </Panel>
+          )}
+
+          {panel === 'lines' && (
+            <Panel>
+              <Option
+                label="Stump line"
+                selected={overlay.showStumpLine}
+                onPress={() => setOverlay({ ...overlay, showStumpLine: !overlay.showStumpLine })}
+              />
+              <Option
+                label="Bail height"
+                selected={overlay.showBailLine}
+                onPress={() => setOverlay({ ...overlay, showBailLine: !overlay.showBailLine })}
+              />
+            </Panel>
+          )}
+
+          {panel === 'decision' && (
+            <Panel>
+              <Option label="Out" selected={decision === 'out'} onPress={() => void recordDecision('out')} />
+              <Option label="Not out" selected={decision === 'not_out'} onPress={() => void recordDecision('not_out')} />
+              <Option label="Unclear" selected={decision === 'inconclusive'} onPress={() => void recordDecision('inconclusive')} />
+            </Panel>
+          )}
+        </View>
       )}
     </Screen>
   );
 }
 
-function Toggle({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+function Key({
+  label, hint, onPress, primary = false, repeat = false,
+}: {
+  label: string; hint: string; onPress: () => void; primary?: boolean; repeat?: boolean;
+}) {
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stop = () => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => stop, []);
+
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={hint}
       onPress={onPress}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: on }}
-      accessibilityLabel={label}
-      style={({ pressed }) => [s.toggle, on && s.toggleOn, pressed && { opacity: 0.7 }]}
+      onLongPress={repeat ? () => { stop(); timer.current = setInterval(onPress, 90); } : undefined}
+      onPressOut={stop}
+      delayLongPress={280}
+      style={({ pressed }) => [s.key, primary && s.keyPrimary, pressed && { opacity: 0.7 }]}
     >
-      <Text style={[type.body, { color: on ? colors.textOnDark : colors.text }]}>{label}</Text>
+      <Text style={[type.bodyStrong, { color: primary ? colors.textOnDark : colors.text }]}>{label}</Text>
     </Pressable>
   );
 }
 
-/**
- * Route keys look like `vest-01_9`. Camera ids contain hyphens, so the split is
- * at the last underscore, not the first.
- */
+function Tab({
+  label, open, marked = false, onPress,
+}: {
+  label: string; open: boolean; marked?: boolean; onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [s.tab, open && s.tabOpen, pressed && { opacity: 0.6 }]}
+    >
+      <Text
+        style={[
+          type.caption,
+          { color: open ? colors.text : marked ? colors.ready : colors.textMuted, fontWeight: open || marked ? '600' : '400' },
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+const Panel = ({ children }: { children: React.ReactNode }) => <View style={s.panel}>{children}</View>;
+
+function Option({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [s.option, selected && s.optionOn, pressed && { opacity: 0.7 }]}
+    >
+      <Text style={[type.body, { color: selected ? colors.textOnDark : colors.text }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** Route keys look like `vest-01_9`; camera ids contain hyphens, so split at the last underscore. */
 function parseRouteKey(raw: string | undefined): { cameraId: string; seq: number } {
   const value = raw ?? '';
   const cut = value.lastIndexOf('_');
@@ -302,16 +365,35 @@ function parseRouteKey(raw: string | undefined): { cameraId: string; seq: number
 }
 
 const s = StyleSheet.create({
-  stage: {
-    aspectRatio: 16 / 10,
-    backgroundColor: colors.black,
-    justifyContent: 'center',
-  },
+  stage: { aspectRatio: 16 / 10, backgroundColor: colors.black, justifyContent: 'center' },
   notReady: { padding: space.xl, alignItems: 'center' },
-  controls: { paddingTop: space.md, gap: space.md },
-  speedRow: { flexDirection: 'row', gap: space.sm, paddingHorizontal: space.xl },
-  speed: {
+  controls: { paddingTop: space.md, gap: space.lg },
+
+  transport: { flexDirection: 'row', gap: space.sm, paddingHorizontal: space.xl },
+  key: {
     flex: 1,
+    minHeight: TOUCH_MIN,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyPrimary: { flex: 1.8, backgroundColor: colors.accent, borderColor: colors.accent },
+
+  tabs: {
+    flexDirection: 'row',
+    marginHorizontal: space.xl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.rule,
+  },
+  tab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.sm },
+  tabOpen: { borderBottomWidth: 2, borderBottomColor: colors.text },
+
+  panel: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingHorizontal: space.xl },
+  option: {
+    flexGrow: 1,
+    flexBasis: '30%',
     minHeight: 52,
     borderRadius: radius.md,
     borderWidth: 1.5,
@@ -319,16 +401,5 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  speedOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  overlayRow: { flexDirection: 'row', gap: space.sm, paddingHorizontal: space.xl },
-  toggle: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toggleOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  optionOn: { backgroundColor: colors.accent, borderColor: colors.accent },
 });

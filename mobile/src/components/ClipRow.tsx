@@ -1,44 +1,41 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { megabytes, overBall, seconds } from '@/lib/format';
+import { dotLabelFor, dotStateFor } from '@/lib/clipStatus';
+import { megabytes, seconds } from '@/lib/format';
 import { colors } from '@/theme/colors';
-import { ROW_HEIGHT, radius, space } from '@/theme/spacing';
+import { ROW_HEIGHT, space } from '@/theme/spacing';
 import { type } from '@/theme/typography';
 import type { Clip } from '@/types/clip';
 
-import { StatusDot, dotLabelFor, dotStateFor } from './StatusDot';
+import { StatusDot } from './StatusDot';
 
 /**
  * One delivery in the list.
  *
- * The whole row is the tap target and it never moves once drawn. Badges use a
- * word, not a glyph, because an umpire is not going to learn an icon language
- * between overs and a wrong guess about what a symbol meant is worse than the
- * extra millimetre of text.
+ * A ball number, a word for its state, and how long it ran. Nothing else
+ * competes for attention: the list is scanned, not read, and every extra column
+ * is something the eye has to skip on the way to the dot.
+ *
+ * The whole row is the tap target and it never moves once drawn.
  */
 
-function badges(clip: Clip): string[] {
-  const out: string[] = [];
-  if (clip.pinned) out.push('Kept');
-  if (clip.reviewed) out.push('Reviewed');
-  if (clip.closed_by === 'timeout') out.push('Timed out');
-  if (clip.closed_by === 'recovered') out.push('Recovered');
-  if (clip.closed_by === 'manual') out.push('Grabbed');
-  if (!clip.legal) out.push('Not a legal ball');
-  return out;
+function note(clip: Clip): string | null {
+  if (clip.pinned) return 'Kept';
+  if (clip.closed_by === 'timeout') return 'Ran on to 40 seconds';
+  if (clip.closed_by === 'recovered') return 'Start was missed';
+  if (clip.closed_by === 'manual') return 'Grabbed afterwards';
+  return null;
 }
 
-function detail(clip: Clip): string {
+function detail(clip: Clip): string | null {
   if (clip.status === 'downloading') {
     const pct = clip.bytes ? Math.round((clip.bytesLocal / clip.bytes) * 100) : 0;
     return `${pct}% of ${megabytes(clip.bytes)}`;
   }
-  if (clip.status === 'verifying') return 'Checking it is intact';
-  if (clip.status === 'announced') return 'Waiting for the vest';
   if (clip.status === 'failed') return clip.lastError ?? 'Did not arrive';
-  if (clip.status === 'expired') return 'Rolled out of the buffer';
-  return seconds(clip.duration_s);
+  if (clip.status === 'expired') return 'Deleted';
+  return note(clip);
 }
 
 export const ClipRow = memo(function ClipRow({
@@ -52,7 +49,7 @@ export const ClipRow = memo(function ClipRow({
 }) {
   const state = dotStateFor(clip.status);
   const tappable = state !== 'missing';
-  const marks = badges(clip);
+  const sub = detail(clip);
 
   return (
     <Pressable
@@ -61,35 +58,31 @@ export const ClipRow = memo(function ClipRow({
       delayLongPress={400}
       disabled={!tappable}
       accessibilityRole="button"
-      accessibilityLabel={`Ball ${clip.seq}, over ${overBall(clip.over, clip.ball_in_over)}, ${dotLabelFor(clip.status)}. ${marks.join(', ')}`}
+      accessibilityLabel={`Ball ${clip.seq}, ${dotLabelFor(clip.status)}${sub ? `, ${sub}` : ''}`}
       style={({ pressed }) => [s.row, pressed && s.pressed]}
     >
-      <View style={s.dot}>
-        <StatusDot status={clip.status} size={16} />
-      </View>
+      <StatusDot status={clip.status} size={16} />
 
       <View style={s.main}>
-        <View style={s.titleRow}>
+        <View style={s.head}>
           <Text style={[type.numeral, { color: tappable ? colors.text : colors.textMuted }]}>
             Ball {clip.seq}
           </Text>
-          <Text style={[type.numeralSmall, { color: colors.textMuted }]}>
-            {overBall(clip.over, clip.ball_in_over)}
+          <Text style={[type.caption, { color: colors.textMuted }]}>
+            {dotLabelFor(clip.status)}
           </Text>
         </View>
-        <Text style={[type.caption, { color: colors.textMuted }]} numberOfLines={1}>
-          {detail(clip)}
-        </Text>
+        {sub ? (
+          <Text style={[type.caption, { color: colors.textMuted }]} numberOfLines={1}>
+            {sub}
+          </Text>
+        ) : null}
       </View>
 
-      {marks.length > 0 && (
-        <View style={s.badges}>
-          {marks.slice(0, 2).map((m) => (
-            <View key={m} style={s.badge}>
-              <Text style={[type.caption, s.badgeText]}>{m}</Text>
-            </View>
-          ))}
-        </View>
+      {clip.status === 'ready' && (
+        <Text style={[type.numeralSmall, { color: colors.textMuted }]}>
+          {seconds(clip.duration_s)}
+        </Text>
       )}
     </Pressable>
   );
@@ -100,21 +93,12 @@ const s = StyleSheet.create({
     minHeight: ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.md,
+    gap: space.lg,
     paddingVertical: space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.rule ?? colors.border,
   },
   pressed: { backgroundColor: colors.surface },
-  dot: { width: 20, alignItems: 'center' },
-  main: { flex: 1, gap: 3 },
-  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
-  badges: { alignItems: 'flex-end', gap: 4 },
-  badge: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    paddingHorizontal: space.sm,
-    paddingVertical: 3,
-  },
-  badgeText: { color: colors.textMuted },
+  main: { flex: 1, gap: 2 },
+  head: { flexDirection: 'row', alignItems: 'baseline', gap: space.md },
 });

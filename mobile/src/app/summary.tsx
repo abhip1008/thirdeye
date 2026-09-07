@@ -6,7 +6,7 @@ import { Header } from '@/components/Header';
 import { StatusDot } from '@/components/StatusDot';
 import { Body, Button, Divider, Muted, Screen, SectionLabel, Title } from '@/components/ui';
 import { listReviews } from '@/db/queries';
-import { megabytes, overBall } from '@/lib/format';
+import { megabytes } from '@/lib/format';
 import { purgeUnpinned } from '@/privacy/retention';
 import { useClips } from '@/stores/clipStore';
 import { useMatch } from '@/stores/matchStore';
@@ -103,9 +103,6 @@ export default function SummaryScreen() {
               <View style={s.keptLeft}>
                 <StatusDot status={c.status} />
                 <Text style={[type.numeral, { color: colors.text }]}>Ball {c.seq}</Text>
-                <Text style={[type.numeralSmall, { color: colors.textMuted }]}>
-                  {overBall(c.over, c.ball_in_over)}
-                </Text>
               </View>
               <Text style={[type.caption, { color: colors.textMuted }]}>
                 {c.pinReason ?? 'kept'}

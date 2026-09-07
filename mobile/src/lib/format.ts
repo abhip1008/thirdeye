@@ -9,10 +9,6 @@ export const clock = (s: number): string => {
 
 export const megabytes = (bytes: number): string => `${(bytes / 1_000_000).toFixed(1)} MB`;
 
-/** "2.3" for over 2 ball 3, or an em dash when the phone is not tracking score. */
-export const overBall = (over: number | null, ball: number | null): string =>
-  over === null || ball === null ? '—' : `${over}.${ball}`;
-
 export const percent = (n: number): string => `${Math.round(n)}%`;
 
 export const timeOfDay = (unixSeconds: number): string =>
