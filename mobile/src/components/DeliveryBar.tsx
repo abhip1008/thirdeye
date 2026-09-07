@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -81,7 +82,17 @@ export function DeliveryBar() {
       )}
 
       <Pressable
-        onPress={() => void useDelivery.getState().press()}
+        onPress={() => {
+          /* A physical remote confirmed itself by feel, which is what let an
+             umpire press it without looking. Glass gives nothing back, so the
+             confirmation has to come through the only channel left. Heavier on
+             the start of a ball than the end, so the two are distinguishable in
+             a pocket. */
+          void Haptics.impactAsync(
+            recording ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Heavy
+          ).catch(() => {});
+          void useDelivery.getState().press();
+        }}
         disabled={busy}
         accessibilityRole="button"
         accessibilityState={{ busy }}
