@@ -28,6 +28,10 @@ export const ConnectionState_VALUES = ["disconnected", "connecting", "connected"
 export type UmpireEnd = "bowlers" | "square_leg";
 export const UmpireEnd_VALUES = ["bowlers", "square_leg"] as const;
 
+/** Which edge of a delivery a marker represents. The umpire marks the start and the end from the app; the vest cuts the clip out of its rolling buffer afterwards. */
+export type MarkEdge = "start" | "end";
+export const MarkEdge_VALUES = ["start", "end"] as const;
+
 /** Why a clip is exempt from auto-purge. Free-text is not allowed: pin reasons end up in an audit log and must be enumerable. */
 export type PinReason = "wicket" | "review" | "no_ball" | "incident" | "other";
 export const PinReason_VALUES = ["wicket", "review", "no_ball", "incident", "other"] as const;
@@ -80,8 +84,8 @@ export interface HealthSnapshot {
   /** Measured, not configured. A silent drop here is the worst failure mode in the system. */
   encoder_fps: number;
   clips_held: number;
-  /** Battery of the BLE remote, null if the remote has never reported. */
-  remote_battery_pct?: number | null;
+  /** How many seconds of footage are currently recoverable from the rolling buffer. A marker older than this can no longer be cut, which is the one thing the phone needs to know before promising the umpire a clip. */
+  buffer_held_s: number;
 }
 
 
@@ -97,6 +101,8 @@ export interface HelloMessage {
   end?: UmpireEnd;
   /** How many clips the vest holds. The phone mirrors this rather than hardcoding 12. */
   ring_size?: number;
+  /** Depth of the rolling capture buffer. Anything within this window can still be cut, which is what makes a marker queued during a Wi-Fi outage recoverable. */
+  buffer_seconds?: number;
 }
 
 
@@ -143,6 +149,8 @@ export interface PongMessage {
   type: "pong";
   /** Echo of the client ping timestamp, for RTT. */
   t: number;
+  /** The vest's own clock at the moment it replied. With the round trip from `t`, the phone estimates the offset between the two clocks and stamps every marker in vest time - so the vest never has to track a per-client offset of its own. */
+  vest_time?: number;
 }
 
 
@@ -160,6 +168,23 @@ export interface PinMessage {
   seq: number;
   pinned: boolean;
   reason: PinReason;
+}
+
+/**
+ * The umpire marked the start or the end of a delivery. Replaces the BLE remote: the control now lives in the app, next to the footage.
+ * 
+ * A marker is not a trigger. The vest records continuously, so this only says which part of the buffer to keep. That is what lets a marker queued during a Wi-Fi outage still produce a clip once the link returns - the footage was never conditional on the message arriving.
+ */
+export interface MarkMessage {
+  v: number;
+  type: "mark";
+  /** Delivery number. Minted by the phone, which is now the thing that counts deliveries. */
+  seq: number;
+  edge: MarkEdge;
+  /** Unix seconds in the VEST's clock, already offset-corrected by the phone. See `vest_time` on the pong message. */
+  at: number;
+  /** True when this marker was held on the phone during an outage and is being replayed. The vest treats it identically; the flag exists so a late clip can be explained rather than looking like a fault. */
+  queued?: boolean;
 }
 
 
@@ -190,6 +215,7 @@ export type ServerMessage =
 export type ClientMessage =
   | AckMessage
   | PinMessage
+  | MarkMessage
   | PingMessage
   | ResyncMessage;
 
@@ -276,6 +302,12 @@ const CLIENTMESSAGE_REQUIRED: Record<string, readonly string[]> = {
     "seq",
     "pinned",
     "reason"
+  ],
+  "mark": [
+    "v",
+    "seq",
+    "edge",
+    "at"
   ],
   "ping": [
     "v",

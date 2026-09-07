@@ -59,7 +59,20 @@ def test_every_server_message_parses(fixture: dict) -> None:
 
 def test_every_client_message_parses(fixture: dict) -> None:
     seen = {client_adapter.validate_python(raw).type for raw in fixture["client_messages"]}
-    assert seen == {"ack", "pin", "ping", "resync"}
+    assert seen == {"ack", "pin", "mark", "ping", "resync"}
+
+
+def test_delivery_markers_carry_an_edge_and_a_vest_timestamp(fixture: dict) -> None:
+    """The marker replaced the BLE remote. It is the one message the vest cannot
+    guess at: without an edge it does not know which end of the delivery this is,
+    and without a vest-clock timestamp it cannot find the footage in the buffer."""
+    marks = [m for m in fixture["client_messages"] if m["type"] == "mark"]
+    assert {m["edge"] for m in marks} == {"start", "end"}
+    for raw in marks:
+        message = client_adapter.validate_python(raw)
+        assert message.at > 0
+    # One of them is a replay held during an outage, which must parse the same way.
+    assert any(m.get("queued") for m in marks)
 
 
 def test_pairing_payload_parses(fixture: dict) -> None:
@@ -69,7 +82,12 @@ def test_pairing_payload_parses(fixture: dict) -> None:
 
 
 @pytest.mark.parametrize("key", ["missing_required_field", "unknown_message_type", "not_an_object"])
-def test_rejected_shapes_are_rejected(fixture: dict, key: str) -> None:
+def test_rejected_server_shapes_are_rejected(fixture: dict, key: str) -> None:
     """A validator that accepts everything is worse than no validator."""
     with pytest.raises(ValidationError):
         server_adapter.validate_python(fixture["rejected"][key])
+
+
+def test_a_marker_without_an_edge_is_rejected(fixture: dict) -> None:
+    with pytest.raises(ValidationError):
+        client_adapter.validate_python(fixture["rejected"]["mark_missing_edge"])

@@ -30,6 +30,11 @@
       "description": "Which end the vest is standing at. One vest in v1; the field exists so a second unit needs no protocol change.",
       "enum": ["bowlers", "square_leg"]
     },
+    "MarkEdge": {
+      "type": "string",
+      "description": "Which edge of a delivery a marker represents. The umpire marks the start and the end from the app; the vest cuts the clip out of its rolling buffer afterwards.",
+      "enum": ["start", "end"]
+    },
     "PinReason": {
       "type": "string",
       "description": "Why a clip is exempt from auto-purge. Free-text is not allowed: pin reasons end up in an audit log and must be enumerable.",
@@ -76,14 +81,14 @@
       "type": "object",
       "description": "Vest telemetry. Deliberately carries no video and no identifiers beyond camera_id.",
       "additionalProperties": false,
-      "required": ["battery_pct", "temp_c", "disk_free_gb", "encoder_fps", "clips_held"],
+      "required": ["battery_pct", "temp_c", "disk_free_gb", "encoder_fps", "clips_held", "buffer_held_s"],
       "properties": {
         "battery_pct": { "type": "number" },
         "temp_c": { "type": "number" },
         "disk_free_gb": { "type": "number" },
         "encoder_fps": { "type": "number", "description": "Measured, not configured. A silent drop here is the worst failure mode in the system." },
         "clips_held": { "type": "integer" },
-        "remote_battery_pct": { "type": ["number", "null"], "description": "Battery of the BLE remote, null if the remote has never reported." }
+        "buffer_held_s": { "type": "number", "description": "How many seconds of footage are currently recoverable from the rolling buffer. A marker older than this can no longer be cut, which is the one thing the phone needs to know before promising the umpire a clip." }
       }
     },
     "HelloMessage": {
@@ -99,7 +104,8 @@
         "protocol": { "type": "integer", "description": "Highest protocol version the vest speaks. The phone refuses to pair on a major mismatch." },
         "firmware": { "type": "string" },
         "end": { "$ref": "#/$defs/UmpireEnd" },
-        "ring_size": { "type": "integer", "description": "How many clips the vest holds. The phone mirrors this rather than hardcoding 12." }
+        "ring_size": { "type": "integer", "description": "How many clips the vest holds. The phone mirrors this rather than hardcoding 12." },
+        "buffer_seconds": { "type": "integer", "description": "Depth of the rolling capture buffer. Anything within this window can still be cut, which is what makes a marker queued during a Wi-Fi outage recoverable." }
       }
     },
     "ClipReadyMessage": {
@@ -159,7 +165,8 @@
       "properties": {
         "v": { "type": "integer" },
         "type": { "const": "pong" },
-        "t": { "type": "number", "description": "Echo of the client ping timestamp, for RTT." }
+        "t": { "type": "number", "description": "Echo of the client ping timestamp, for RTT." },
+        "vest_time": { "type": "number", "description": "The vest's own clock at the moment it replied. With the round trip from `t`, the phone estimates the offset between the two clocks and stamps every marker in vest time - so the vest never has to track a per-client offset of its own." }
       }
     },
     "AckMessage": {
@@ -183,6 +190,20 @@
         "seq": { "type": "integer" },
         "pinned": { "type": "boolean" },
         "reason": { "$ref": "#/$defs/PinReason" }
+      }
+    },
+    "MarkMessage": {
+      "type": "object",
+      "description": "The umpire marked the start or the end of a delivery. Replaces the BLE remote: the control now lives in the app, next to the footage.\n\nA marker is not a trigger. The vest records continuously, so this only says which part of the buffer to keep. That is what lets a marker queued during a Wi-Fi outage still produce a clip once the link returns - the footage was never conditional on the message arriving.",
+      "additionalProperties": false,
+      "required": ["v", "type", "seq", "edge", "at"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "mark" },
+        "seq": { "type": "integer", "description": "Delivery number. Minted by the phone, which is now the thing that counts deliveries." },
+        "edge": { "$ref": "#/$defs/MarkEdge" },
+        "at": { "type": "number", "description": "Unix seconds in the VEST's clock, already offset-corrected by the phone. See `vest_time` on the pong message." },
+        "queued": { "type": "boolean", "description": "True when this marker was held on the phone during an outage and is being replayed. The vest treats it identically; the flag exists so a late clip can be explained rather than looking like a fault." }
       }
     },
     "PingMessage": {
@@ -223,6 +244,7 @@
       "oneOf": [
         { "$ref": "#/$defs/AckMessage" },
         { "$ref": "#/$defs/PinMessage" },
+        { "$ref": "#/$defs/MarkMessage" },
         { "$ref": "#/$defs/PingMessage" },
         { "$ref": "#/$defs/ResyncMessage" }
       ]

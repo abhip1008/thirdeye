@@ -4,6 +4,7 @@ import {
   parseClientMessage,
   parseServerMessage,
   type ClipMeta,
+  type MarkMessage,
   type PairingPayload,
 } from '../protocol';
 
@@ -36,7 +37,26 @@ describe('protocol v1 contract', () => {
       expect(parsed).not.toBeNull();
       return parsed!.type;
     });
-    expect(new Set(types)).toEqual(new Set(['ack', 'pin', 'ping', 'resync']));
+    expect(new Set(types)).toEqual(new Set(['ack', 'pin', 'mark', 'ping', 'resync']));
+  });
+
+  /* The marker replaced the BLE remote, so it is now the only way a delivery is
+     ever recorded. It is the one message that cannot be guessed at: without an
+     edge the vest does not know which end of the delivery this is, and without a
+     vest-clock timestamp it cannot find the footage in its buffer. */
+  it('carries an edge and a vest-clock timestamp on every delivery marker', () => {
+    const marks = fixture.client_messages.filter(
+      (m) => m.type === 'mark'
+    ) as unknown as MarkMessage[];
+    expect(marks).toHaveLength(2);
+    expect(new Set(marks.map((m) => m.edge))).toEqual(new Set(['start', 'end']));
+    for (const m of marks) expect(m.at).toBeGreaterThan(0);
+    // One is a replay held through an outage; it must parse identically.
+    expect(marks.some((m) => 'queued' in m && m.queued)).toBe(true);
+  });
+
+  it('rejects a marker with no edge', () => {
+    expect(parseClientMessage(fixture.rejected.mark_missing_edge)).toBeNull();
   });
 
   it('accepts the clip metadata shape, nullable score fields included', () => {

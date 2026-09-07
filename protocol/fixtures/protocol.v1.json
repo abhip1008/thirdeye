@@ -22,38 +22,100 @@
   },
   "server_messages": [
     {
-      "v": 1, "type": "hello", "camera_id": "vest-01",
-      "match_id": "2026-09-06-nwcl-div2-marymoor", "seq_latest": 9,
-      "protocol": 1, "firmware": "0.1.0", "end": "bowlers", "ring_size": 12
+      "v": 1,
+      "type": "hello",
+      "camera_id": "vest-01",
+      "match_id": "2026-09-06-nwcl-div2-marymoor",
+      "seq_latest": 9,
+      "protocol": 1,
+      "firmware": "0.1.0",
+      "end": "bowlers",
+      "ring_size": 12,
+      "buffer_seconds": 300
     },
     {
-      "v": 1, "type": "clip_ready", "seq": 9, "camera_id": "vest-01",
+      "v": 1,
+      "type": "clip_ready",
+      "seq": 9,
+      "camera_id": "vest-01",
       "bytes": 9540221,
       "sha256": "3f9a2c1d4e5b6a7089abcdef0123456789abcdef0123456789abcdef01234567",
-      "duration_s": 15.26, "closed_by": "button"
-    },
-    { "v": 1, "type": "clip_expired", "seq": -3, "camera_id": "vest-01" },
-    {
-      "v": 1, "type": "session_state", "camera_id": "vest-01",
-      "state": "recording", "seq": 10, "since": 1757193045.1
+      "duration_s": 15.26,
+      "closed_by": "button"
     },
     {
-      "v": 1, "type": "status", "camera_id": "vest-01",
+      "v": 1,
+      "type": "clip_expired",
+      "seq": -3,
+      "camera_id": "vest-01"
+    },
+    {
+      "v": 1,
+      "type": "session_state",
+      "camera_id": "vest-01",
+      "state": "recording",
+      "seq": 10,
+      "since": 1757193045.1
+    },
+    {
+      "v": 1,
+      "type": "status",
+      "camera_id": "vest-01",
       "health": {
-        "battery_pct": 62, "temp_c": 51.2, "disk_free_gb": 180,
-        "encoder_fps": 59.9, "clips_held": 12, "remote_battery_pct": 88
+        "battery_pct": 62,
+        "temp_c": 51.2,
+        "disk_free_gb": 180,
+        "encoder_fps": 59.9,
+        "clips_held": 12,
+        "buffer_held_s": 300.0
       }
     },
-    { "v": 1, "type": "pong", "t": 1757193045.1 }
+    {
+      "v": 1,
+      "type": "pong",
+      "t": 1757193045.1,
+      "vest_time": 1757193045.44
+    }
   ],
   "client_messages": [
     {
-      "v": 1, "type": "ack", "seq": 9,
+      "v": 1,
+      "type": "ack",
+      "seq": 9,
       "sha256": "3f9a2c1d4e5b6a7089abcdef0123456789abcdef0123456789abcdef01234567"
     },
-    { "v": 1, "type": "pin", "seq": 9, "pinned": true, "reason": "wicket" },
-    { "v": 1, "type": "ping", "t": 1757193045.1 },
-    { "v": 1, "type": "resync", "since_seq": 4 }
+    {
+      "v": 1,
+      "type": "pin",
+      "seq": 9,
+      "pinned": true,
+      "reason": "wicket"
+    },
+    {
+      "v": 1,
+      "type": "mark",
+      "seq": 10,
+      "edge": "start",
+      "at": 1757193061.1
+    },
+    {
+      "v": 1,
+      "type": "mark",
+      "seq": 10,
+      "edge": "end",
+      "at": 1757193076.36,
+      "queued": true
+    },
+    {
+      "v": 1,
+      "type": "ping",
+      "t": 1757193045.1
+    },
+    {
+      "v": 1,
+      "type": "resync",
+      "since_seq": 4
+    }
   ],
   "pairing_payload": {
     "v": 1,
@@ -66,8 +128,22 @@
   },
   "rejected": {
     "_comment": "Shapes that MUST fail to parse. Guards against a validator that accepts everything.",
-    "missing_required_field": { "v": 1, "type": "clip_ready", "seq": 9 },
-    "unknown_message_type": { "v": 1, "type": "definitely_not_a_real_type", "seq": 9 },
-    "not_an_object": "clip_ready"
+    "missing_required_field": {
+      "v": 1,
+      "type": "clip_ready",
+      "seq": 9
+    },
+    "unknown_message_type": {
+      "v": 1,
+      "type": "definitely_not_a_real_type",
+      "seq": 9
+    },
+    "not_an_object": "clip_ready",
+    "mark_missing_edge": {
+      "v": 1,
+      "type": "mark",
+      "seq": 10,
+      "at": 1757193061.1
+    }
   }
 }

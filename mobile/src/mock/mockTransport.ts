@@ -179,7 +179,7 @@ export class MockTransport implements Transport {
         disk_free_gb: 181,
         encoder_fps: Number((MOCK_CLIP.fps - Math.random() * 0.4).toFixed(1)),
         clips_held: Math.min(12, this.seq),
-        remote_battery_pct: 91,
+        buffer_held_s: 300,
       },
     });
   }

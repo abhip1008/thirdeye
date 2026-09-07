@@ -32,6 +32,10 @@ ConnectionState_VALUES: tuple[str, ...] = ("disconnected", "connecting", "connec
 UmpireEnd = Literal["bowlers", "square_leg"]
 UmpireEnd_VALUES: tuple[str, ...] = ("bowlers", "square_leg",)
 
+# Which edge of a delivery a marker represents. The umpire marks the start and the end from the app; the vest cuts the clip out of its rolling buffer afterwards.
+MarkEdge = Literal["start", "end"]
+MarkEdge_VALUES: tuple[str, ...] = ("start", "end",)
+
 # Why a clip is exempt from auto-purge. Free-text is not allowed: pin reasons end up in an audit log and must be enumerable.
 PinReason = Literal["wicket", "review", "no_ball", "incident", "other"]
 PinReason_VALUES: tuple[str, ...] = ("wicket", "review", "no_ball", "incident", "other",)
@@ -74,7 +78,7 @@ class HealthSnapshot(BaseModel):
     disk_free_gb: float
     encoder_fps: float = Field(..., description="Measured, not configured. A silent drop here is the worst failure mode in the system.")
     clips_held: int
-    remote_battery_pct: float | None = Field(default=None, description="Battery of the BLE remote, null if the remote has never reported.")
+    buffer_held_s: float = Field(..., description="How many seconds of footage are currently recoverable from the rolling buffer. A marker older than this can no longer be cut, which is the one thing the phone needs to know before promising the umpire a clip.")
 
 
 class HelloMessage(BaseModel):
@@ -89,6 +93,7 @@ class HelloMessage(BaseModel):
     firmware: str
     end: UmpireEnd | None = Field(default=None)
     ring_size: int | None = Field(default=None, description="How many clips the vest holds. The phone mirrors this rather than hardcoding 12.")
+    buffer_seconds: int | None = Field(default=None, description="Depth of the rolling capture buffer. Anything within this window can still be cut, which is what makes a marker queued during a Wi-Fi outage recoverable.")
 
 
 class ClipReadyMessage(BaseModel):
@@ -139,6 +144,7 @@ class PongMessage(BaseModel):
     v: int
     type: Literal["pong"] = "pong"
     t: float = Field(..., description="Echo of the client ping timestamp, for RTT.")
+    vest_time: float | None = Field(default=None, description="The vest's own clock at the moment it replied. With the round trip from `t`, the phone estimates the offset between the two clocks and stamps every marker in vest time - so the vest never has to track a per-client offset of its own.")
 
 
 class AckMessage(BaseModel):
@@ -158,6 +164,22 @@ class PinMessage(BaseModel):
     seq: int
     pinned: bool
     reason: PinReason
+
+
+class MarkMessage(BaseModel):
+    """
+    The umpire marked the start or the end of a delivery. Replaces the BLE remote: the control now lives in the app, next to the footage.
+    
+    A marker is not a trigger. The vest records continuously, so this only says which part of the buffer to keep. That is what lets a marker queued during a Wi-Fi outage still produce a clip once the link returns - the footage was never conditional on the message arriving.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    v: int
+    type: Literal["mark"] = "mark"
+    seq: int = Field(..., description="Delivery number. Minted by the phone, which is now the thing that counts deliveries.")
+    edge: MarkEdge
+    at: float = Field(..., description="Unix seconds in the VEST's clock, already offset-corrected by the phone. See `vest_time` on the pong message.")
+    queued: bool | None = Field(default=None, description="True when this marker was held on the phone during an outage and is being replayed. The vest treats it identically; the flag exists so a late clip can be explained rather than looking like a fault.")
 
 
 class PingMessage(BaseModel):
@@ -184,7 +206,7 @@ ServerMessage = Annotated[
 
 # Phone to vest.
 ClientMessage = Annotated[
-    Union[AckMessage, PinMessage, PingMessage, ResyncMessage],
+    Union[AckMessage, PinMessage, MarkMessage, PingMessage, ResyncMessage],
     Field(discriminator="type"),
 ]
 
@@ -208,6 +230,7 @@ __all__ = [
     "SessionState",
     "ConnectionState",
     "UmpireEnd",
+    "MarkEdge",
     "PinReason",
     "AppealType",
     "Decision",
@@ -221,6 +244,7 @@ __all__ = [
     "PongMessage",
     "AckMessage",
     "PinMessage",
+    "MarkMessage",
     "PingMessage",
     "ResyncMessage",
     "ServerMessage",
