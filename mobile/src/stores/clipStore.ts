@@ -6,6 +6,7 @@ import { MockDownloader } from '@/mock/mockDownloader';
 import type { Downloader } from '@/net/transport';
 import { audit } from '@/privacy/audit';
 import * as retention from '@/privacy/retention';
+import { makeThumbnail } from '@/privacy/thumbnails';
 import type { Clip } from '@/types/clip';
 import type { ClipReadyMessage, ClipStatus, PinReason } from '@/types/protocol';
 
@@ -215,13 +216,25 @@ async function download(set: Set, get: Get, clip: Clip) {
     });
 
     current = get().bySeq(clip.camera_id, clip.seq) ?? current;
-    await setStatus(set, get, current, 'ready', {
+    const ready = await setStatus(set, get, current, 'ready', {
       localPath: result.localPath,
       bytesLocal: result.bytesLocal,
       downloadedAt: Date.now() / 1000,
       lastError: null,
     });
     await audit('clip.ready', clip.match_id, { camera_id: clip.camera_id, seq: clip.seq });
+
+    // After the clip is ready, never before. A thumbnail is worth having and
+    // worth nothing compared to the clip: the umpire can already watch it while
+    // this happens, and if it fails they lose a picture, not a delivery.
+    const thumbPath = await makeThumbnail(
+      clip.match_id, clip.camera_id, clip.seq, result.localPath, clip.duration_s
+    );
+    if (thumbPath) {
+      const latest = get().bySeq(clip.camera_id, clip.seq);
+      if (latest) await setStatus(set, get, latest, 'ready', { thumbPath });
+    }
+    void ready;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     current = get().bySeq(clip.camera_id, clip.seq) ?? current;

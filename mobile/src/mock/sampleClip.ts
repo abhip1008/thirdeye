@@ -20,6 +20,3 @@ export const MOCK_CLIP = {
   height: 1200,
   bytes: 250_000,
 } as const;
-
-/** Sentinel `local_path` for a clip backed by the bundled sample. */
-export const MOCK_CLIP_PATH = 'mock://sample.mp4';

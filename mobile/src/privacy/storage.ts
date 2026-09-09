@@ -99,7 +99,10 @@ export function partialBytes(matchId: string, cameraId: string, seq: number): nu
  */
 export function deleteClipFiles(matchId: string, cameraId: string, seq: number): number {
   let freed = 0;
-  for (const f of [clipFile(matchId, cameraId, seq), partFile(matchId, cameraId, seq)]) {
+  // The thumbnail goes with the clip. A still frame outliving the video would be
+  // a picture of somebody surviving the retention promise.
+  const thumb = new File(matchDir(matchId), `${cameraId}_${String(seq).padStart(4, '0')}.jpg`);
+  for (const f of [clipFile(matchId, cameraId, seq), partFile(matchId, cameraId, seq), thumb]) {
     try {
       if (f.exists) {
         freed += f.size ?? 0;
