@@ -101,6 +101,34 @@ describe('expiry', () => {
   });
 });
 
+describe('the upsert', () => {
+  /* Not a database test - a column list test. Anything missing from the
+     conflict clause can be written once and never changed again, and the write
+     that tries reports success. Comparing the two lists catches that without a
+     device. */
+  it('updates every column except the key', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const source: string = require('fs').readFileSync('src/db/queries.ts', 'utf8');
+    const insert = source.slice(source.indexOf('INSERT INTO clips'), source.indexOf('VALUES (?,?'));
+    const columns = insert
+      .replace(/INSERT INTO clips|[()\n]/g, ' ')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+    const clause = source.slice(
+      source.indexOf('ON CONFLICT(match_id, camera_id, seq) DO UPDATE SET'),
+      source.indexOf('purge_after=excluded.purge_after')
+    );
+
+    const key = ['match_id', 'camera_id', 'seq'];
+    const missing = columns.filter(
+      (c) => !key.includes(c) && c !== 'purge_after' && !clause.includes(`${c}=excluded.${c}`)
+    );
+    expect(missing).toEqual([]);
+  });
+});
+
 describe('clips whose files have gone', () => {
   /* iOS may reclaim the cache directory between launches, so a row can outlive
      its file. A green dot over a clip that will not play is the one failure the

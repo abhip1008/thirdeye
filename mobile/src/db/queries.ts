@@ -144,9 +144,17 @@ export async function upsertClip(c: Clip): Promise<void> {
         status, bytes_local, local_path, thumb_path, pinned, pin_reason, pinned_at,
         reviewed, downloaded_at, attempts, last_error, purge_after)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+     -- Every column except the key. A field left out of this list can be set
+     -- once and never changed again, and the write that tries looks like it
+     -- worked: no error, no warning, just the old value still sitting there.
+     -- That is how resolution stayed at the vest camera's default long after
+     -- the app had measured the real one.
      ON CONFLICT(match_id, camera_id, seq) DO UPDATE SET
        over=excluded.over, ball_in_over=excluded.ball_in_over, legal=excluded.legal,
-       duration_s=excluded.duration_s, bytes=excluded.bytes, sha256=excluded.sha256,
+       started_at=excluded.started_at, ended_at=excluded.ended_at,
+       duration_s=excluded.duration_s, preroll_s=excluded.preroll_s,
+       resolution=excluded.resolution, fps=excluded.fps, codec=excluded.codec,
+       bytes=excluded.bytes, sha256=excluded.sha256,
        closed_by=excluded.closed_by, status=excluded.status,
        bytes_local=excluded.bytes_local, local_path=excluded.local_path,
        thumb_path=excluded.thumb_path, pinned=excluded.pinned,
