@@ -135,7 +135,7 @@ afford to be slow and careful rather than fast and fragile.
 
 | Part | What it does |
 |---|---|
-| `components/DeliveryBar.tsx` | One large toggle pinned to the bottom of the screen, in the same place on the clip list **and** the review player — so a bowler running in while you look at the last ball cannot catch you on the wrong screen. A toggle, not two buttons, because a toggle cannot be pressed in the wrong order. |
+| `components/DeliveryBar.tsx` | One large toggle pinned to the bottom of the clip list, always in the same place so it can be hit without looking. A toggle, not two buttons, because a toggle cannot be pressed in the wrong order. It is deliberately absent from the review screen: a big button under a video someone is studying frame by frame is a button they will eventually hit by accident. |
 | `stores/deliveryStore.ts` | Every tap is written to the phone's database **before** anything is sent. Sending is a separate step that is allowed to fail. This is what makes an outage survivable. |
 | `stores/connectionStore.ts` | Taps are stamped in the **vest's** clock, not the phone's, worked out from the heartbeat. It keeps the sample with the shortest round trip rather than the newest — a slow reply means more uncertainty about when the vest read its clock. |
 | `net/httpDownloader.ts` | Bytes land in a `.part` file that becomes a real `.mp4` only once its length **and** its hash both match. A crash can leave a partial file; it can never leave a broken clip the list calls ready. |
