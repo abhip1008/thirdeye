@@ -45,7 +45,18 @@ function push(level: LogLevel, tag: string, message: string, detail?: unknown) {
   ring.push({ ts: Date.now(), level, tag, message: text });
   if (ring.length > defaults.auditLogMaxRows) ring.splice(0, ring.length - defaults.auditLogMaxRows);
   listeners.forEach((l) => l());
-  if (__DEV__) console[level === 'debug' ? 'log' : level](`[${tag}] ${text}`);
+
+  // Only real errors reach console.error, which is what raises a banner over
+  // the app in a development build. A `warn` here means an expected but notable
+  // operational event - a link dropped, a marker queued, a delivery that
+  // produced no clip - and those are normal in this product. Letting them
+  // hijack the screen would train everyone to ignore the banner, which is the
+  // opposite of what it is for. They are all on the diagnostics screen, which
+  // colours them by level and is where someone goes when they want them.
+  if (__DEV__) {
+    if (level === 'error') console.error(`[${tag}] ${text}`);
+    else console.log(`${level.toUpperCase()} [${tag}] ${text}`);
+  }
 }
 
 export const log = {
