@@ -338,8 +338,20 @@ the helper instead — it copies into the same folder the picker writes to, and
 the app cannot tell the difference:
 
 ```bash
-./scripts/add-footage.sh over1.mp4 over2.mp4   # add
+# convert recordings once: strips audio, normalises, builds a vest source
+./scripts/prepare-footage.sh ~/Downloads/*.MOV
+
+./scripts/add-footage.sh footage/clips/*.mp4   # into the simulator
 ./scripts/add-footage.sh --clear               # back to the test pattern
+```
+
+Nothing under `footage/` is ever committed — see [`footage/README.md`](footage/README.md).
+The vest can use the same recordings in place of a camera:
+
+```bash
+cd vest
+THIRDEYE_SOURCE=file:../footage/vest-source.mp4 \
+  ./.venv/bin/uvicorn thirdeye.main:app --host 0.0.0.0 --port 8000
 ```
 
 Large videos make the app sluggish. Anything over about 200 MB is worth
