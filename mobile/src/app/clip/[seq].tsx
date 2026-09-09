@@ -71,9 +71,21 @@ export default function ClipScreen() {
      other as a strip down the middle. */
   const aspect = useMemo(() => aspectOf(clip?.resolution), [clip?.resolution]);
   const { width: winWidth, height: winHeight } = useWindowDimensions();
-  // Tall footage would otherwise push the controls off the bottom of the
-  // screen, so the stage never takes more than half of it.
-  const stageHeight = Math.min(winWidth / aspect, winHeight * 0.5);
+
+  /* The stage is exactly the size of the picture, not a fixed box the picture
+     sits inside.
+     Letterboxing a portrait clip into a full-width frame leaves a black band
+     down each side, which reads as something broken rather than as a video that
+     happens to be tall. Sizing the container to the footage means there is
+     nothing around the picture at all. Height is capped so the controls below
+     always stay on screen; when the cap bites, the width follows it down. */
+  const stage = useMemo(() => {
+    // What is left after the header, the scrubber, the keys and the row of
+    // panels, measured rather than guessed. Tall footage takes all of it.
+    const maxHeight = winHeight * 0.58;
+    const width = Math.min(winWidth, maxHeight * aspect);
+    return { width, height: width / aspect };
+  }, [winWidth, winHeight, aspect]);
   const player = useVideoPlayer(source ?? null, (p) => {
     p.loop = false;
     p.muted = true;
@@ -205,7 +217,7 @@ export default function ClipScreen() {
         onBack={() => router.back()}
       />
 
-      <View style={[s.stage, { height: stageHeight }]}>
+      <View style={[s.stage, stage]}>
         {playable ? (
           <>
             <Pressable
@@ -232,14 +244,19 @@ export default function ClipScreen() {
 
             <OverlayCanvas state={overlay} onChange={setOverlay} />
 
+            {/* Tall footage cannot fill the width inline - a clip this shape
+                needs the whole screen height to do that - so the way to a
+                closer look has to be obvious rather than a small glyph in a
+                corner. */}
             <Pressable
               onPress={() => setBig(true)}
               accessibilityRole="button"
               accessibilityLabel="Fill the screen"
               hitSlop={12}
-              style={({ pressed }) => [s.expand, pressed && { opacity: 0.6 }]}
+              style={({ pressed }) => [s.expand, pressed && s.expandPressed]}
             >
               <Text style={s.expandGlyph}>⤢</Text>
+              <Text style={s.expandLabel}>Bigger</Text>
             </Pressable>
           </>
         ) : (
@@ -261,6 +278,8 @@ export default function ClipScreen() {
           onStep={step}
           onTogglePlay={togglePlay}
           playing={playing}
+          frame={Math.round(position * fps)}
+          totalFrames={Math.round(duration * fps)}
           onClose={() => setBig(false)}
         />
       )}
@@ -368,6 +387,8 @@ function Fullscreen({
   onStep,
   onTogglePlay,
   playing,
+  frame,
+  totalFrames,
   onClose,
 }: {
   aspect: number;
@@ -377,6 +398,8 @@ function Fullscreen({
   onStep: (frames: number) => void;
   onTogglePlay: () => void;
   playing: boolean;
+  frame: number;
+  totalFrames: number;
   onClose: () => void;
 }) {
   const { width, height } = useWindowDimensions();
@@ -410,10 +433,24 @@ function Fullscreen({
 
         <OverlayCanvas state={overlay} onChange={onOverlayChange} />
 
-        <View style={s.fsBar} pointerEvents="box-none">
-          <FsKey label="◀ One frame" onPress={() => onStep(-1)} />
-          <FsKey label={playing ? 'Pause' : 'Play'} onPress={onTogglePlay} />
-          <FsKey label="One frame ▶" onPress={() => onStep(1)} />
+        {/* One object rather than three floating buttons: a single bar sitting
+            over the picture, with the frame count above it so the umpire can
+            see a step land without leaving fullscreen. */}
+        <View style={s.fsControls} pointerEvents="box-none">
+          <Text style={s.fsReadout}>
+            frame {frame} of {totalFrames}
+          </Text>
+          <View style={s.fsBar}>
+            <FsKey label="◀" hint="One frame back" onPress={() => onStep(-1)} wide />
+            <View style={s.fsDivider} />
+            <FsKey
+              label={playing ? '❚❚' : '▶'}
+              hint={playing ? 'Pause' : 'Play'}
+              onPress={onTogglePlay}
+            />
+            <View style={s.fsDivider} />
+            <FsKey label="▶" hint="One frame forward" onPress={() => onStep(1)} wide />
+          </View>
         </View>
 
         <Pressable
@@ -431,7 +468,17 @@ function Fullscreen({
 }
 
 /** Same repeat-on-hold behaviour as the keys below, on a dark ground. */
-function FsKey({ label, onPress }: { label: string; onPress: () => void }) {
+function FsKey({
+  label,
+  hint,
+  onPress,
+  wide = false,
+}: {
+  label: string;
+  hint: string;
+  onPress: () => void;
+  wide?: boolean;
+}) {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const stop = () => {
     if (timer.current) clearInterval(timer.current);
@@ -442,14 +489,14 @@ function FsKey({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={hint}
       onPress={onPress}
       onLongPress={() => { stop(); timer.current = setInterval(onPress, 90); }}
       onPressOut={stop}
       delayLongPress={280}
-      style={({ pressed }) => [s.fsKey, pressed && { opacity: 0.7 }]}
+      style={({ pressed }) => [s.fsKey, wide && s.fsKeyWide, pressed && s.fsKeyPressed]}
     >
-      <Text style={[type.bodyStrong, { color: colors.textOnDark }]}>{label}</Text>
+      <Text style={s.fsKeyGlyph}>{label}</Text>
     </Pressable>
   );
 }
@@ -539,22 +586,25 @@ function parseRouteKey(raw: string | undefined): { cameraId: string; seq: number
 }
 
 const s = StyleSheet.create({
-  stage: { width: '100%', backgroundColor: colors.black, justifyContent: 'center' },
+  stage: { alignSelf: 'center', backgroundColor: colors.black, justifyContent: 'center' },
   notReady: { padding: space.xl, alignItems: 'center' },
   controls: { paddingTop: space.md, gap: space.lg },
 
   expand: {
     position: 'absolute',
-    right: space.md,
-    bottom: space.md,
-    width: 40,
-    height: 40,
-    borderRadius: radius.sm,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    right: space.sm,
+    bottom: space.sm,
+    minHeight: 38,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(18,18,20,0.82)',
   },
-  expandGlyph: { color: colors.textOnDark, fontSize: 20, lineHeight: 24 },
+  expandPressed: { backgroundColor: 'rgba(255,255,255,0.22)' },
+  expandGlyph: { color: colors.textOnDark, fontSize: 15, lineHeight: 18 },
+  expandLabel: { color: colors.textOnDark, fontSize: 13, fontWeight: '600' },
 
   fsRoot: {
     position: 'absolute',
@@ -568,27 +618,44 @@ const s = StyleSheet.create({
     zIndex: 10,
   },
   fsStage: { backgroundColor: colors.black },
-  fsBar: {
+
+  fsControls: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: space.lg,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: space.md,
-    paddingHorizontal: space.xl,
+    bottom: space.xl,
+    alignItems: 'center',
+    gap: space.sm,
   },
+  fsReadout: {
+    color: colors.textOnDark,
+    opacity: 0.72,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: space.md,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
+  fsBar: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: 'rgba(18,18,20,0.86)',
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
+  fsDivider: { width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.18)' },
   fsKey: {
     minHeight: TOUCH_MIN,
-    minWidth: 132,
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(0,0,0,0.62)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
+    minWidth: 78,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space.lg,
   },
+  fsKeyWide: { minWidth: 96 },
+  fsKeyPressed: { backgroundColor: 'rgba(255,255,255,0.14)' },
+  fsKeyGlyph: { color: colors.textOnDark, fontSize: 19, lineHeight: 22 },
   fsClose: {
     position: 'absolute',
     top: space.lg,
