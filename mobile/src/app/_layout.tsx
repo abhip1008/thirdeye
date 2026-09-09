@@ -29,18 +29,19 @@ import { View } from 'react-native';
  * If this phone never sees a vest again, the clips still expire on schedule.
  */
 /**
- * Screens where the delivery control belongs.
+ * Screens where the delivery control belongs: the clip list, and nowhere else.
  *
- * The clip list, obviously - but the review player too. If the umpire is
- * looking at the last ball between deliveries and the bowler starts running in,
- * a control that only lived on the list would mean navigating back first, and
- * they would miss the start. Making it the one thing that never leaves the
- * screen removes that failure entirely.
+ * It used to follow onto the review player, on the reasoning that a bowler
+ * might start running in while the umpire was watching the last ball. In use
+ * that was wrong. A review happens with play stopped, the screen is small, and a
+ * large button under a video the umpire is studying frame by frame is a button
+ * they will eventually hit by accident - which starts a delivery that is not
+ * happening and, worse, ends the one that is.
  *
- * It is deliberately absent from pairing, setup, settings and diagnostics: on
- * those screens a stray tap would open a delivery nobody meant to start.
+ * Also absent from pairing, setup, settings and diagnostics, where a stray tap
+ * would open a delivery nobody meant to start.
  */
-const CONTROL_ROUTES = ['/live', '/clip'];
+const CONTROL_ROUTES = ['/live'];
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);

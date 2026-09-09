@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { Header } from '@/components/Header';
 import { OverlayCanvas, OverlayState, defaultOverlay } from '@/components/OverlayCanvas';
@@ -11,7 +11,6 @@ import { EmptyState, Muted, Screen } from '@/components/ui';
 import { FALLBACK_FPS } from '@/config/appConfig';
 import { insertReview, reviewForClip } from '@/db/queries';
 import { log } from '@/lib/log';
-import { resolveVideoSource } from '@/mock/sampleAsset';
 import { audit } from '@/privacy/audit';
 import { useClips } from '@/stores/clipStore';
 import { useMatch } from '@/stores/matchStore';
@@ -61,7 +60,10 @@ export default function ClipScreen() {
   const fps = clip?.fps || FALLBACK_FPS;
   const frameStep = 1 / fps;
 
-  const source = useMemo(() => resolveVideoSource(clip?.localPath ?? null), [clip?.localPath]);
+  // Every clip is a real file on disk now, mock or not, so there is nothing to
+  // translate - the player opens the same kind of thing in every case.
+  const localPath = clip?.localPath ?? null;
+  const source = useMemo(() => (localPath ? { uri: localPath } : null), [localPath]);
   const player = useVideoPlayer(source ?? null, (p) => {
     p.loop = false;
     p.muted = true;
@@ -74,6 +76,7 @@ export default function ClipScreen() {
   const [panel, setPanel] = useState<'none' | 'speed' | 'lines' | 'decision'>('none');
   const [overlay, setOverlay] = useState<OverlayState>(defaultOverlay);
   const [decision, setDecision] = useState<Decision | null>(null);
+  const [big, setBig] = useState(false);
   const scrubbing = useRef(false);
 
   const duration = clip?.duration_s ?? player?.duration ?? 0;
@@ -194,21 +197,41 @@ export default function ClipScreen() {
 
       <View style={s.stage}>
         {playable ? (
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={togglePlay}
-            accessibilityRole="button"
-            accessibilityLabel={playing ? 'Pause' : 'Play'}
-          >
-            <VideoView style={StyleSheet.absoluteFill} player={player} nativeControls={false} contentFit="contain" />
-            {!playing && (
-              /* The only hint that the picture is tappable. Shown when paused,
-                 which is most of a review, and gone the moment it is playing. */
-              <View style={s.playHint} pointerEvents="none">
-                <Text style={s.playGlyph}>▶</Text>
-              </View>
-            )}
-          </Pressable>
+          <>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={togglePlay}
+              accessibilityRole="button"
+              accessibilityLabel={playing ? 'Pause' : 'Play'}
+            >
+              <VideoView
+                style={StyleSheet.absoluteFill}
+                player={player}
+                nativeControls={false}
+                contentFit="contain"
+              />
+              {!playing && (
+                /* The only hint that the picture is tappable. Shown while
+                   paused, which is most of a review, and gone the moment it
+                   starts playing. */
+                <View style={s.playHint} pointerEvents="none">
+                  <Text style={s.playGlyph}>▶</Text>
+                </View>
+              )}
+            </Pressable>
+
+            <OverlayCanvas state={overlay} onChange={setOverlay} />
+
+            <Pressable
+              onPress={() => setBig(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Fill the screen"
+              hitSlop={12}
+              style={({ pressed }) => [s.expand, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={s.expandGlyph}>⤢</Text>
+            </Pressable>
+          </>
         ) : (
           <View style={s.notReady}>
             <StatusLabel status={clip.status} />
@@ -217,8 +240,19 @@ export default function ClipScreen() {
             </Muted>
           </View>
         )}
-        {playable && <OverlayCanvas state={overlay} onChange={setOverlay} />}
       </View>
+
+      {playable && big && (
+        <Fullscreen
+          player={player}
+          overlay={overlay}
+          onOverlayChange={setOverlay}
+          onStep={step}
+          onTogglePlay={togglePlay}
+          playing={playing}
+          onClose={() => setBig(false)}
+        />
+      )}
 
       {playable && (
         <View style={s.controls}>
@@ -238,8 +272,8 @@ export default function ClipScreen() {
 
           {/* Two keys, both stepping. Play and pause are the picture itself. */}
           <View style={s.transport}>
-            <Key label="Back a frame" onPress={() => step(-1)} />
-            <Key label="On a frame" onPress={() => step(1)} />
+            <Key label="◀ One frame" onPress={() => step(-1)} />
+            <Key label="One frame ▶" onPress={() => step(1)} />
           </View>
 
           {/* Three quiet words, one panel at a time. */}
@@ -300,6 +334,103 @@ export default function ClipScreen() {
         </View>
       )}
     </Screen>
+  );
+}
+
+/**
+ * A closer look.
+ *
+ * The video fills the screen, rotated a quarter turn so the umpire turns the
+ * phone sideways - a delivery is 16:10 and a phone held upright wastes most of
+ * it. Rotating the content rather than the app avoids an orientation change
+ * that would rearrange every other screen.
+ *
+ * The frame keys come too. `expo-video` has a native fullscreen, and it forces
+ * its own playback controls, which would take away the single reason to look
+ * closer in the first place.
+ */
+function Fullscreen({
+  player,
+  overlay,
+  onOverlayChange,
+  onStep,
+  onTogglePlay,
+  playing,
+  onClose,
+}: {
+  player: ReturnType<typeof useVideoPlayer>;
+  overlay: OverlayState;
+  onOverlayChange: (next: OverlayState) => void;
+  onStep: (frames: number) => void;
+  onTogglePlay: () => void;
+  playing: boolean;
+  onClose: () => void;
+}) {
+  const { width, height } = useWindowDimensions();
+
+  // Swap the axes: the rotated child is laid out in landscape and then turned.
+  const rotated = { width: height, height: width, transform: [{ rotate: '90deg' }] };
+
+  return (
+    <View style={s.fsRoot}>
+      <View style={[s.fsStage, rotated]}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onTogglePlay}
+          accessibilityRole="button"
+          accessibilityLabel={playing ? 'Pause' : 'Play'}
+        >
+          <VideoView
+            style={StyleSheet.absoluteFill}
+            player={player}
+            nativeControls={false}
+            contentFit="contain"
+          />
+        </Pressable>
+
+        <OverlayCanvas state={overlay} onChange={onOverlayChange} />
+
+        <View style={s.fsBar} pointerEvents="box-none">
+          <FsKey label="◀ One frame" onPress={() => onStep(-1)} />
+          <FsKey label={playing ? 'Pause' : 'Play'} onPress={onTogglePlay} />
+          <FsKey label="One frame ▶" onPress={() => onStep(1)} />
+        </View>
+
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Leave full screen"
+          hitSlop={14}
+          style={({ pressed }) => [s.fsClose, pressed && { opacity: 0.6 }]}
+        >
+          <Text style={s.fsCloseGlyph}>✕</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/** Same repeat-on-hold behaviour as the keys below, on a dark ground. */
+function FsKey({ label, onPress }: { label: string; onPress: () => void }) {
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stop = () => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => stop, []);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      onLongPress={() => { stop(); timer.current = setInterval(onPress, 90); }}
+      onPressOut={stop}
+      delayLongPress={280}
+      style={({ pressed }) => [s.fsKey, pressed && { opacity: 0.7 }]}
+    >
+      <Text style={[type.bodyStrong, { color: colors.textOnDark }]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -382,6 +513,65 @@ const s = StyleSheet.create({
   stage: { aspectRatio: 16 / 10, backgroundColor: colors.black, justifyContent: 'center' },
   notReady: { padding: space.xl, alignItems: 'center' },
   controls: { paddingTop: space.md, gap: space.lg },
+
+  expand: {
+    position: 'absolute',
+    right: space.md,
+    bottom: space.md,
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expandGlyph: { color: colors.textOnDark, fontSize: 20, lineHeight: 24 },
+
+  fsRoot: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.black,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  fsStage: { backgroundColor: colors.black },
+  fsBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: space.lg,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: space.md,
+    paddingHorizontal: space.xl,
+  },
+  fsKey: {
+    minHeight: TOUCH_MIN,
+    minWidth: 132,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space.lg,
+  },
+  fsClose: {
+    position: 'absolute',
+    top: space.lg,
+    right: space.lg,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fsCloseGlyph: { color: colors.textOnDark, fontSize: 19, lineHeight: 22 },
 
   playHint: {
     position: 'absolute',
