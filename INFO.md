@@ -139,8 +139,8 @@ afford to be slow and careful rather than fast and fragile.
 | `stores/deliveryStore.ts` | Every tap is written to the phone's database **before** anything is sent. Sending is a separate step that is allowed to fail. This is what makes an outage survivable. |
 | `stores/connectionStore.ts` | Taps are stamped in the **vest's** clock, not the phone's, worked out from the heartbeat. It keeps the sample with the shortest round trip rather than the newest — a slow reply means more uncertainty about when the vest read its clock. |
 | `net/httpDownloader.ts` | Bytes land in a `.part` file that becomes a real `.mp4` only once its length **and** its hash both match. A crash can leave a partial file; it can never leave a broken clip the list calls ready. |
-| `app/live.tsx` | Twelve rows, newest first, each with a status dot. Nothing else — no score, no over count, nothing to correct. |
-| `app/clip/[seq].tsx` | Two buttons (step back, step forward); tap the video to play. Speed, reference lines and the decision each sit behind one word. |
+| `app/live.tsx` | Twelve rows, newest first, each with a still from the delivery and a status dot. Nothing else — no score, no over count, nothing to correct. |
+| `app/clip/[seq].tsx` | Two buttons (one frame back, one frame on); tap the video to play. Speed, reference lines and the decision each sit behind one word, and a fullscreen turns the phone sideways for a closer look — with the frame keys, which is the whole reason to look closer. |
 
 ### The one fake
 

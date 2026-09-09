@@ -362,6 +362,8 @@ and the one thing worth checking carefully:
 - Hold **+1** to repeat.
 - Drag the scrubber. The read-out under it counts frames, not seconds, because
   the only reason to look at it is to confirm a step moved by exactly one.
+- Tap the **⤢** in the corner of the video for a closer look. It fills the
+  screen sideways, so turn the phone. The frame keys come with it.
 - Tap **Full speed** to open the speed options, and try **Quarter** or
   **Eighth**. The panel closes when you pick one.
 - Tap **Lines** for the stump line and bail height, then drag them with one
