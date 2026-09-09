@@ -37,7 +37,13 @@ mobile/ios/
 !.vscode/extensions.json
 
 # Recorded footage must never reach version control, under any circumstances.
+# The one exception is the synthetic test pattern, which contains no people.
 *.mp4
+*.mov
+*.MOV
+*.m4v
 *.mkv
 *.h264
+*.hevc
+/footage/
 !mobile/assets/mock/sample.mp4

@@ -227,12 +227,21 @@ async function download(set: Set, get: Get, clip: Clip) {
     // After the clip is ready, never before. A thumbnail is worth having and
     // worth nothing compared to the clip: the umpire can already watch it while
     // this happens, and if it fails they lose a picture, not a delivery.
-    const thumbPath = await makeThumbnail(
+    const thumb = await makeThumbnail(
       clip.match_id, clip.camera_id, clip.seq, result.localPath, clip.duration_s
     );
-    if (thumbPath) {
+    if (thumb) {
       const latest = get().bySeq(clip.camera_id, clip.seq);
-      if (latest) await setStatus(set, get, latest, 'ready', { thumbPath });
+      if (latest) {
+        // The generator reports the video's own dimensions, so record those
+        // rather than what the vest camera is configured to produce. Test
+        // footage shot on a phone is portrait, and a player that assumes
+        // otherwise shows it as a strip down the middle.
+        await setStatus(set, get, latest, 'ready', {
+          thumbPath: thumb.path,
+          resolution: `${thumb.width}x${thumb.height}`,
+        });
+      }
     }
     void ready;
   } catch (e) {

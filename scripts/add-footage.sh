@@ -41,7 +41,10 @@ for src in "$@"; do
   [ -f "$src" ] || { echo "not a file: $src" >&2; exit 1; }
   # Ordered prefix so deliveries cycle through them predictably across launches.
   printf -v stamp '%010d' "$(( $(date +%s) + n ))"
-  base=$(basename "$src" | tr -c 'A-Za-z0-9._-' '_')
+  # sed, not tr: `tr -c` treats the trailing newline as "not in the set" and
+  # converts it too, which turned every name into `something.mp4_` and left the
+  # player and the thumbnail generator with an extension neither recognises.
+  base=$(basename "$src" | sed 's/[^A-Za-z0-9._-]/_/g')
   cp "$src" "$DEST/${stamp}_${base}"
   echo "added $(basename "$src")"
   n=$((n + 1))

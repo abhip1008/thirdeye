@@ -34,16 +34,23 @@ export function thumbFile(matchId: string, cameraId: string, seq: number): File 
  * Just under halfway is usually around the ball being bowled, which is the part
  * that distinguishes one row from the next.
  */
+export interface Thumbnail {
+  path: string;
+  /** The video's own dimensions, which the generator reports for free. */
+  width: number;
+  height: number;
+}
+
 export async function makeThumbnail(
   matchId: string,
   cameraId: string,
   seq: number,
   videoUri: string,
   durationSeconds: number
-): Promise<string | null> {
+): Promise<Thumbnail | null> {
   try {
     const at = Math.max(0, Math.round(durationSeconds * FRACTION * 1000));
-    const { uri } = await VideoThumbnails.getThumbnailAsync(videoUri, {
+    const { uri, width, height } = await VideoThumbnails.getThumbnailAsync(videoUri, {
       time: at,
       quality: 0.6,
     });
@@ -53,7 +60,7 @@ export async function makeThumbnail(
     const destination = thumbFile(matchId, cameraId, seq);
     if (destination.exists) destination.delete();
     await new File(uri).move(destination);
-    return destination.uri;
+    return { path: destination.uri, width, height };
   } catch (e) {
     // A missing thumbnail costs a nicer list. It must never cost a clip.
     log.debug('thumbnail', `could not make one for ball ${seq}`, { error: String(e) });

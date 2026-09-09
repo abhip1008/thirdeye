@@ -64,6 +64,16 @@ export default function ClipScreen() {
   // translate - the player opens the same kind of thing in every case.
   const localPath = clip?.localPath ?? null;
   const source = useMemo(() => (localPath ? { uri: localPath } : null), [localPath]);
+
+  /* The picture is shown at its own shape, not the vest camera's.
+     The vest films 16:10 landscape; a phone held upright films the opposite,
+     and test footage is all phone footage. A stage fixed at one shape shows the
+     other as a strip down the middle. */
+  const aspect = useMemo(() => aspectOf(clip?.resolution), [clip?.resolution]);
+  const { width: winWidth, height: winHeight } = useWindowDimensions();
+  // Tall footage would otherwise push the controls off the bottom of the
+  // screen, so the stage never takes more than half of it.
+  const stageHeight = Math.min(winWidth / aspect, winHeight * 0.5);
   const player = useVideoPlayer(source ?? null, (p) => {
     p.loop = false;
     p.muted = true;
@@ -195,7 +205,7 @@ export default function ClipScreen() {
         onBack={() => router.back()}
       />
 
-      <View style={s.stage}>
+      <View style={[s.stage, { height: stageHeight }]}>
         {playable ? (
           <>
             <Pressable
@@ -244,6 +254,7 @@ export default function ClipScreen() {
 
       {playable && big && (
         <Fullscreen
+          aspect={aspect}
           player={player}
           overlay={overlay}
           onOverlayChange={setOverlay}
@@ -350,6 +361,7 @@ export default function ClipScreen() {
  * closer in the first place.
  */
 function Fullscreen({
+  aspect,
   player,
   overlay,
   onOverlayChange,
@@ -358,6 +370,7 @@ function Fullscreen({
   playing,
   onClose,
 }: {
+  aspect: number;
   player: ReturnType<typeof useVideoPlayer>;
   overlay: OverlayState;
   onOverlayChange: (next: OverlayState) => void;
@@ -368,12 +381,19 @@ function Fullscreen({
 }) {
   const { width, height } = useWindowDimensions();
 
-  // Swap the axes: the rotated child is laid out in landscape and then turned.
-  const rotated = { width: height, height: width, transform: [{ rotate: '90deg' }] };
+  /* Turn the phone only when the footage asks for it.
+     A 16:10 delivery from the vest wastes most of an upright screen, so the
+     content is rotated a quarter turn and the umpire turns the phone. Footage
+     shot on a phone is already the right way up, and rotating that would make
+     it worse rather than better. */
+  const sideways = aspect > 1;
+  const stage = sideways
+    ? { width: height, height: width, transform: [{ rotate: '90deg' }] }
+    : { width, height };
 
   return (
     <View style={s.fsRoot}>
-      <View style={[s.fsStage, rotated]}>
+      <View style={[s.fsStage, stage]}>
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={onTogglePlay}
@@ -501,6 +521,15 @@ function Option({ label, selected, onPress }: { label: string; selected: boolean
   );
 }
 
+/** `1920x1200` to 1.6. Falls back to the vest camera's shape when unknown. */
+function aspectOf(resolution: string | undefined): number {
+  const match = /^(\d+)x(\d+)$/.exec(resolution ?? '');
+  if (!match) return 16 / 10;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  return height > 0 && width > 0 ? width / height : 16 / 10;
+}
+
 /** Route keys look like `vest-01_9`; camera ids contain hyphens, so split at the last underscore. */
 function parseRouteKey(raw: string | undefined): { cameraId: string; seq: number } {
   const value = raw ?? '';
@@ -510,7 +539,7 @@ function parseRouteKey(raw: string | undefined): { cameraId: string; seq: number
 }
 
 const s = StyleSheet.create({
-  stage: { aspectRatio: 16 / 10, backgroundColor: colors.black, justifyContent: 'center' },
+  stage: { width: '100%', backgroundColor: colors.black, justifyContent: 'center' },
   notReady: { padding: space.xl, alignItems: 'center' },
   controls: { paddingTop: space.md, gap: space.lg },
 
