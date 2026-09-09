@@ -62,7 +62,10 @@ export const ClipRow = memo(function ClipRow({
       style={({ pressed }) => [s.row, pressed && s.pressed]}
     >
       <View style={s.thumb}>
-        {clip.thumbPath ? (
+        {/* Never for a clip that cannot be played. A picture next to "Not here"
+            contradicts the words beside it, and between a thumbnail and the
+            status dot the dot is the one that has to be believed. */}
+        {clip.thumbPath && tappable ? (
           <Image
             source={{ uri: clip.thumbPath }}
             style={s.image}

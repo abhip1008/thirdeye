@@ -75,10 +75,14 @@ export async function reconcile(matchId: string): Promise<number> {
 
   for (const clip of clips) {
     if (!isPhantom(clip, clipFileExists(clip.localPath))) continue;
+    // The thumbnail goes with it. A still frame beside a row that says "not
+    // here" says the opposite of the row, and the row is the one that is true.
+    deleteClipFiles(clip.match_id, clip.camera_id, clip.seq);
     await upsertClip({
       ...clip,
       status: 'failed',
       localPath: null,
+      thumbPath: null,
       bytesLocal: 0,
       lastError: 'The phone freed up space and removed it',
     });
