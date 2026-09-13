@@ -5,7 +5,8 @@ Boots the real service, lets the buffer fill, starts a match, sends the markers
 a phone would send, and then does what the phone does with the answer: fetch the
 clip over HTTP with a Range request and verify the hash.
 
-Everything here is the production path except the source of the pictures. Run it
+Everything here is the production path except the source of the pictures - the
+requests are signed with the real key, exactly as the phone signs them. Run it
 from vest/:
 
     ./.venv/bin/python scripts/smoke_test.py
@@ -16,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import secrets as pysecrets
 import subprocess
 import sys
 import tempfile
@@ -33,12 +35,40 @@ os.environ["THIRDEYE_DATA_ROOT"] = str(WORK / "matches")
 os.environ["THIRDEYE_BUFFER_SECONDS"] = "60"
 os.environ["THIRDEYE_PREROLL_SECONDS"] = "2"
 os.environ["THIRDEYE_SEGMENT_SECONDS"] = "1"
+# A real key file, in the temporary directory, so the key persists the way it
+# does on the vest rather than falling back to an ephemeral one.
+os.environ["THIRDEYE_KEY_PATH"] = str(WORK / "signing.key")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from thirdeye.main import app, buffer, recorder  # noqa: E402
+from thirdeye.main import app, buffer, recorder, signing_key  # noqa: E402
+from thirdeye.security import sign  # noqa: E402
 
 FAIL = 0
+
+
+def signed(method: str, path: str) -> dict[str, str]:
+    """The headers the phone sends. Everything below goes through here.
+
+    Signing in the smoke test rather than turning checking off is the point: the
+    path being exercised is then the one that runs at a ground, including the
+    part where a signature is computed on one side and checked on the other.
+    """
+    timestamp = str(int(time.time()))
+    nonce = pysecrets.token_hex(8)
+    return {
+        "X-TE-Timestamp": timestamp,
+        "X-TE-Nonce": nonce,
+        "X-TE-Signature": sign(signing_key, method, path, timestamp, nonce),
+    }
+
+
+def signed_ws_url(path: str = "/ws") -> str:
+    """The same thing in a query string, because a WebSocket cannot take headers."""
+    timestamp = str(int(time.time()))
+    nonce = pysecrets.token_hex(8)
+    signature = sign(signing_key, "GET", path, timestamp, nonce)
+    return f"{path}?ts={timestamp}&nonce={nonce}&sig={signature}"
 
 
 def check(label: str, ok: bool, detail: str = "") -> None:
@@ -68,14 +98,43 @@ def main() -> int:
         if not segments:
             return 1
 
+        # Health is unsigned by design: it is how you find out whether there is
+        # a vest there at all.
         health = client.get("/api/health").json()
         check("health reports recording", health["recording"] is True)
         check("buffer depth is reported", health["buffer_held_s"] > 0, f"{health['buffer_held_s']}s")
 
-        match_id = client.post("/api/session/start", json={"venue": "Marymoor"}).json()["match_id"]
+        # Signing, before anything else uses it: an unsigned request must be
+        # refused, and the same request signed must go through.
+        naked = client.get("/api/clips")
+        check("an unsigned request is refused", naked.status_code == 401,
+              f"{naked.status_code} {naked.json().get('detail', '') if naked.content else ''}")
+        dressed = client.get("/api/clips", headers=signed("GET", "/api/clips"))
+        check("a signed request is accepted", dressed.status_code == 200)
+
+        # The same signature twice is a replayed request, not a second one.
+        replayed = signed("GET", "/api/clips")
+        check("a signature works once", client.get("/api/clips", headers=replayed).status_code == 200)
+        check("and is refused the second time",
+              client.get("/api/clips", headers=replayed).status_code == 401)
+
+        # A signature is for one path. Moving it to another must not work.
+        moved = signed("GET", "/api/clips")
+        check("a signature does not transfer to another path",
+              client.get("/api/session", headers=moved).status_code == 401)
+
+        try:
+            with client.websocket_connect("/ws"):
+                check("an unsigned control channel is refused", False, "it was accepted")
+        except Exception:
+            check("an unsigned control channel is refused", True)
+
+        started = client.post("/api/session/start", json={"venue": "Marymoor"},
+                              headers=signed("POST", "/api/session/start"))
+        match_id = started.json()["match_id"]
         check("a match starts", bool(match_id), match_id)
 
-        with client.websocket_connect("/ws") as ws:
+        with client.websocket_connect(signed_ws_url()) as ws:
             hello = ws.receive_json()
             check("hello arrives first", hello["type"] == "hello")
             check("hello advertises the buffer", hello.get("buffer_seconds", 0) > 0)
@@ -118,15 +177,18 @@ def main() -> int:
                   f"{clip['duration_s']}s vs {expected:.1f}s asked for")
 
             # What the phone does next: fetch it, resuming part way.
-            whole = client.get(f"/clips/{clip['seq']}.mp4")
+            path_for = f"/clips/{clip['seq']}.mp4"
+            whole = client.get(path_for, headers=signed("GET", path_for))
             check("the clip downloads", whole.status_code == 200)
             check("the size matches what was announced", len(whole.content) == clip["bytes"])
             check("the hash matches what was announced",
                   hashlib.sha256(whole.content).hexdigest() == clip["sha256"])
 
             half = clip["bytes"] // 2
-            head = client.get(f"/clips/{clip['seq']}.mp4", headers={"Range": f"bytes=0-{half - 1}"})
-            tail = client.get(f"/clips/{clip['seq']}.mp4", headers={"Range": f"bytes={half}-"})
+            head = client.get(path_for,
+                              headers={**signed("GET", path_for), "Range": f"bytes=0-{half - 1}"})
+            tail = client.get(path_for,
+                              headers={**signed("GET", path_for), "Range": f"bytes={half}-"})
             check("a ranged request answers 206", head.status_code == 206 and tail.status_code == 206)
             check("a resumed download reassembles byte-for-byte",
                   hashlib.sha256(head.content + tail.content).hexdigest() == clip["sha256"])
