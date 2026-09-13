@@ -2,6 +2,7 @@ import { log } from '@/lib/log';
 import type { ClientMessage, ConnectionState, ServerMessage } from '@/types/protocol';
 import { parseServerMessage } from '@/types/protocol';
 
+import { signedQuery } from './signing';
 import type { Transport, TransportHandlers } from './transport';
 
 /**
@@ -15,7 +16,15 @@ import type { Transport, TransportHandlers } from './transport';
  * ground with two hundred people on it. Every one of those is a reconnect, not
  * an error, and the only thing that must never happen is the phone quietly
  * believing it is still connected.
+ *
+ * The opening request is signed in the URL rather than in a header, because
+ * nothing in React Native or a browser lets you put headers on a WebSocket
+ * handshake. The vest checks the signature before it accepts, so a phone
+ * without the key never gets a channel at all - it gets close code 1008.
  */
+/** Close code 1008: the vest read the signature and refused it. */
+const POLICY_VIOLATION = 1008;
+
 export class WebSocketTransport implements Transport {
   readonly name = 'WebSocketTransport';
   readonly isMock = false;
@@ -25,6 +34,7 @@ export class WebSocketTransport implements Transport {
   private retry: ReturnType<typeof setTimeout> | null = null;
   private attempt = 0;
   private wanted = false;
+  private opening = false;
 
   constructor(
     private readonly host: string,
@@ -72,12 +82,34 @@ export class WebSocketTransport implements Transport {
   /* ---------- internals ---------- */
 
   private open(): void {
-    if (!this.wanted || this.socket) return;
+    // `opening` exists because signing is asynchronous and `this.socket` is not
+    // set until it finishes. Without it, a retry firing during that gap would
+    // start a second handshake and leave one socket with nobody listening.
+    if (!this.wanted || this.socket || this.opening) return;
+    this.opening = true;
     this.state(this.attempt === 0 ? 'connecting' : 'reconnecting');
+    void this.openSigned().finally(() => {
+      this.opening = false;
+    });
+  }
+
+  private async openSigned(): Promise<void> {
+    let query = '';
+    try {
+      query = await signedQuery('/ws');
+    } catch (e) {
+      // An unsigned attempt is still worth making: a vest with checking off
+      // accepts it, and one with checking on refuses it in a way we report.
+      log.warn('link', 'could not sign the handshake', { error: String(e) });
+    }
+
+    // The keystore read above is not instant, and a disconnect may have landed
+    // during it - in which case nobody wants this socket any more.
+    if (!this.wanted) return;
 
     let socket: WebSocket;
     try {
-      socket = new WebSocket(this.url);
+      socket = new WebSocket(`${this.url}${query}`);
     } catch (e) {
       log.warn('link', 'could not open the control channel', { error: String(e) });
       this.scheduleRetry();
@@ -114,11 +146,18 @@ export class WebSocketTransport implements Transport {
       log.debug('link', 'control channel error');
     };
 
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       if (this.socket !== socket) return;
       this.socket = null;
       if (!this.wanted) return;
-      log.warn('link', 'control channel closed, reconnecting');
+      if (event?.code === POLICY_VIOLATION) {
+        // The vest did not like the signature. Retrying will not fix that, but
+        // stopping would leave a phone that looks merely offline - so it keeps
+        // trying and says the one thing that is actually true.
+        log.warn('link', 'the vest rejected this phone - scan the pairing code again');
+      } else {
+        log.warn('link', 'control channel closed, reconnecting');
+      }
       this.state('reconnecting');
       this.scheduleRetry();
     };
