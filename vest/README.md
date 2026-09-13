@@ -89,6 +89,25 @@ Then set `THIRDEYE_SOURCE` in `/etc/thirdeye.env` to whichever camera
 `camera:/dev/video0` for USB. Nothing else in the app changes - the phone finds
 the vest from its pairing code.
 
+### The pairing code
+
+The vest mints a signing key on first boot and keeps it at `/data/signing.key`,
+owner-readable only. Every request from the phone is signed with it; an unsigned
+one is refused, which is what stops the next person who photographs the Wi-Fi
+code from downloading footage of people.
+
+Print the code to tape to the vest:
+
+```bash
+sudo -u thirdeye /opt/thirdeye/vest/.venv/bin/python -m thirdeye.pairing \
+  | qrencode -o pairing.png -s 8
+```
+
+That command is the only place the key is ever revealed. It is on no route, and
+the startup log prints the payload with it redacted - a log ends up in a bug
+report, and a key in a bug report is not a key any more. If the vest is re-keyed
+(delete the file and restart), every paired phone has to scan the new code.
+
 > **Run `check-hardware.sh` before ordering anything.** The design assumed a
 > board with a video encoder on the chip. **A Raspberry Pi 5 has none** - the
 > encoder was removed - so every frame is compressed by the CPU, continuously,

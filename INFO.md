@@ -121,7 +121,7 @@ afford to be slow and careful rather than fast and fragile.
 
 ## 3. The pieces
 
-### The vest — 1,694 lines of Python
+### The vest — 2,130 lines of Python
 
 | Module | What it does |
 |---|---|
@@ -130,8 +130,9 @@ afford to be slow and careful rather than fast and fragile.
 | `capture/cutter.py` | Joins the covering segments into one file. A **stream copy, never a re-encode**: re-encoding forty seconds of 1080p would spend the entire between-balls budget. Copying is near-instant and the picture is bit-identical. |
 | `storage/clip_store.py` | Hashes each clip with SHA-256, writes a metadata sidecar — **measured from the file, not copied from config**, because the phone steps frames using the rate in it. Keeps twelve. Two exceptions: pinned clips, and clips the phone has never confirmed — at that moment the vest holds the **only** copy. |
 | `api/` | A WebSocket for messages, plain HTTP with **resume** for the files. Resume is not a nicety: restarting a nine-megabyte transfer because someone walked behind a sightscreen would not fit in the gap. |
+| `security.py` | Mints the signing key, checks every signature, and remembers the last few thousand requests so a captured one cannot be sent twice. |
 
-### The phone — 7,100 lines of TypeScript
+### The phone — 8,240 lines of TypeScript
 
 | Part | What it does |
 |---|---|
@@ -270,6 +271,44 @@ Full design in [`docs/PRIVACY.md`](docs/PRIVACY.md). What is actually implemente
 | **Screenshots blocked** | A screenshot escapes every rule above and lands in a camera roll. Blocked while a match is open, including the app-switcher preview. |
 | **Nothing identifies anyone** | A match is a date and a ground. No names, no teams, no scores. |
 | **An audit trail** | A system that deletes evidence must be able to say *what* it deleted and when. A timestamp, an event type, a ball number. No frames, no names. |
+| **Joining the network is not enough** | Every request that lists or hands over footage carries a signature made with a key that reaches the phone in the pairing code and never travels again. Photographing the code taped to the vest gets you onto the Wi-Fi and no further. |
+
+### How the phone proves it is the phone
+
+The Wi-Fi passphrase is printed on a code taped to the vest, in front of
+everybody. So it is not a secret, and until this was built, joining the network
+*was* the authorisation check — `GET /clips/4.mp4` handed over the footage to
+whoever asked.
+
+The fix is the ordinary one, done carefully. The pairing code carries a second
+value that is never displayed and never travels again: 32 random bytes the vest
+mints on its first boot. Every request the phone makes carries a fingerprint
+computed from that key and from the request itself:
+
+    signature = HMAC-SHA256(key, "GET\n/clips/4.mp4\n1789326997\n7f3a…")
+
+Four lines: what you are doing, what you are doing it to, when, and a number
+used once. The vest recomputes the same fingerprint and compares. Each line is
+load-bearing:
+
+| Line | What it stops |
+|---|---|
+| The method and the path | Capturing the signature on a harmless request and reusing it on `/clips/4.mp4` |
+| The timestamp | Using a signature captured last week. More than five minutes out and the vest refuses it |
+| The nonce | Replaying the same request inside those five minutes — the vest remembers the last 4,096 |
+
+The control channel gets the same four values in its URL, because neither React
+Native nor a browser can put headers on a WebSocket handshake, and the vest
+checks them **before** it accepts. An unauthorised device is not told a clip
+exists, which matters more than it being unable to download one.
+
+> The awkward part: `expo-crypto` computes SHA-256 but not HMAC, so the phone
+> assembles HMAC on top of it. Two independent implementations of one function
+> now have to agree exactly and forever, or a vest refuses a phone in a car park
+> with nothing to look at but a 401. Both sides check themselves against the same
+> file of test vectors — and one bug already tried this on: the two sides
+> rendered the same timestamp differently, one rounding and one truncating, so
+> signatures failed about half the time, at random, for no visible reason.
 
 The built app asks for exactly two things: the **camera**, to read one pairing
 code, and the **local network**, to reach the vest. CI asserts that on every
@@ -279,9 +318,12 @@ in a version bump and nobody re-reading a generated file.
 > [!WARNING]
 > **Two gaps, stated rather than glossed over.**
 >
-> **The Wi-Fi network is currently the trust boundary.** Any phone that joins the
-> vest's network can request clips. Signing every request closes it, and the
-> field for that key already exists — so it is an implementation, not a redesign.
+> **The clip bytes cross the link unencrypted.** Signing proves *who is asking*;
+> it does not hide what comes back. Somebody capturing raw Wi-Fi frames, who
+> also has the passphrase, could reconstruct a clip they watched being
+> transferred. That is a far harder attack than joining and pressing download —
+> which is the one that is now closed — and closing it properly means TLS on a
+> private IP address, which has its own problems.
 >
 > **The deletion sweep only runs when the app is opened.** Clips are still
 > app-private and still vanish on uninstall, but the promise says "after seven
@@ -355,10 +397,11 @@ because uniform ones are precisely what hid it.
 | A missed start tap | Recovered from the buffer |
 | A tap older than the buffer | Refused, not turned into an empty clip |
 | **Deletion after twelve balls** | 16 clips seeded on a device; the app's own sweep left the 12 newest plus one kept and one reviewed |
+| **Signed requests, against a live vest** | The app's own signing module, unmodified, accepted over both HTTP and the control channel; unsigned refused on both; a replayed signature refused; a signature moved to another path refused |
 | Database migration on a device | Correct schema and version |
 | The app runs on iOS | Real build, launches, screens render |
 | Permissions of the shipped app | Camera and local network only |
-| Tests | 55 phone, 34 vest, 20 end-to-end checks |
+| Tests | 70 phone, 49 vest, 27 end-to-end checks |
 
 ### ○ Not proven — and honestly so
 
@@ -366,6 +409,7 @@ because uniform ones are precisely what hid it.
 |---|---|
 | **Frame-accurate stepping** | The library documents exact seeking and the sample clip is built to prove it by eye. Ten seconds of tapping settles it. |
 | **Tapping the button** | Taps could not be simulated, so markers were sent over the wire exactly as the app sends them. Receive and download are proven; the send path is verified by code only. |
+| **Typing the key into the pairing screen** | Same reason — no taps. The key's journey from the keystore to a signed request the vest accepts is proven against a running vest; what is unproven is the few lines between the text field and the keystore. |
 | **Whether the camera sees the ball** | The one that can invalidate everything. See [section 9](#9-what-happens-next). |
 | Any real hardware | No vest exists. The software is written for it and runs against a file. |
 
@@ -429,7 +473,7 @@ Seven phases. Three are done. One of the remaining ones is not code.
 | ○ | Vest hardware brings up | **The only one needing hardware** |
 | ● | The link | Built and proven with a file for a camera |
 | ● | Buffer and cutting | Built and proven |
-| ○ | Hardening — signed requests, retry | Next |
+| ◐ | Hardening — signed requests done, retry next | In progress |
 | ○ | Field trial | **The gate** |
 | ○ | Cloud and consent | After the gate, deliberately |
 

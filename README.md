@@ -351,8 +351,22 @@ The vest can use the same recordings in place of a camera:
 ```bash
 cd vest
 THIRDEYE_SOURCE=file:../footage/vest-source.mp4 \
+THIRDEYE_KEY_PATH=/tmp/thirdeye-signing.key \
   ./.venv/bin/uvicorn thirdeye.main:app --host 0.0.0.0 --port 8000
 ```
+
+The vest refuses unsigned requests, so a phone that pairs against this needs its
+key. Print the pairing payload and read the `psk` out of it:
+
+```bash
+THIRDEYE_KEY_PATH=/tmp/thirdeye-signing.key ./.venv/bin/python -m thirdeye.pairing
+```
+
+Type that value into **Vest key** on the pairing screen. If you would rather not
+bother during development, `THIRDEYE_REQUIRE_SIGNATURE=false` turns the check
+off and the vest says so in capitals every time it starts - which is the point.
+Never run a real match that way: the Wi-Fi passphrase is printed on the vest, so
+without signing, joining the network is the entire authorisation check.
 
 Large videos make the app sluggish. Anything over about 200 MB is worth
 shrinking first:
@@ -566,9 +580,16 @@ The short version, all implemented and running:
 - **An append-only audit trail** records what was deleted and when, without
   keeping what was deleted.
 
-Two honest gaps, both documented rather than glossed over: **the access point is
-currently the trust boundary** until the Phase 6 request signing lands, and the
-retention sweep only runs when the app is opened.
+- **Every request to the vest is signed.** The Wi-Fi passphrase is printed on
+  the vest where players can photograph it, so joining the network proves
+  nothing; a request that is not signed with the pairing key is refused, as is a
+  replayed one, and the control channel is refused before it opens. See
+  `docs/decisions/0006-lan-transport-security.md`.
+
+Two honest gaps, both documented rather than glossed over: **the clip bytes
+themselves still cross the link unencrypted**, so signing says who may ask
+rather than hiding the answer, and the retention sweep only runs when the app is
+opened.
 
 `docs/PRIVACY.md` section 8 lists five questions a league has to answer before
 hardware is ordered. They are policy questions, not engineering ones.
