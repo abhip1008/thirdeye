@@ -47,3 +47,9 @@ mobile/ios/
 *.hevc
 /footage/
 !mobile/assets/mock/sample.mp4
+
+# Signing keys. A vest mints its own at /data/signing.key; a laptop running the
+# vest for development puts one wherever THIRDEYE_KEY_PATH points. Neither ever
+# belongs in a repository, and a committed one cannot be un-published.
+*.key
+signing.key
