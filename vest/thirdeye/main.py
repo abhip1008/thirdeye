@@ -12,14 +12,16 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
+import secrets
 import shutil
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from .api import files
@@ -29,6 +31,7 @@ from .capture.recorder import Recorder
 from .capture.source import Source
 from .config import settings
 from .protocol import PROTOCOL_VERSION
+from .security import Verifier, load_or_create_key
 from .session.state import Session
 from .storage.clip_store import ClipStore
 
@@ -53,6 +56,47 @@ recorder = Recorder(
 _started_at = time.monotonic()
 
 
+def _signing_key() -> str:
+    """The vest's key, or an ephemeral one when there is nowhere to keep it.
+
+    On the vest /data is writable and the key survives reboots, which is what
+    makes a pairing code worth printing. Anywhere else - a laptop, a test - the
+    key lives only as long as the process, and the pairing code changes every
+    restart. That is the right behaviour for a machine that is not a vest, and
+    it says so rather than failing to start.
+    """
+    try:
+        return load_or_create_key(settings.key_path)
+    except OSError as exc:
+        ephemeral = secrets.token_hex(32)
+        log.warning("cannot keep a key at %s (%s); using one that dies with this process",
+                    settings.key_path, exc)
+        return ephemeral
+
+
+signing_key = _signing_key()
+verifier = Verifier(signing_key, required=settings.require_signature)
+
+
+def require_signature(request: Request) -> None:
+    """Every route that reveals or changes anything goes through here.
+
+    Health is the exception: it is how you find out whether the thing is alive,
+    and it says nothing a passer-by could not learn by looking at the vest.
+    """
+    reason = verifier.check(
+        method=request.method,
+        path=request.url.path,
+        timestamp=request.headers.get("x-te-timestamp"),
+        nonce=request.headers.get("x-te-nonce"),
+        signature=request.headers.get("x-te-signature"),
+        now=time.time(),
+    )
+    if reason is not None:
+        log.warning("refused %s %s: %s", request.method, request.url.path, reason)
+        raise HTTPException(status_code=401, detail=reason)
+
+
 def health() -> dict[str, Any]:
     """What the phone shows in the corner, and what a support call starts from."""
     total, _, free = shutil.disk_usage(settings.data_root.parent if settings.data_root.parent.exists() else Path("/"))
@@ -71,6 +115,12 @@ def health() -> dict[str, Any]:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings.data_root.mkdir(parents=True, exist_ok=True)
+    # Redacted, deliberately. The payload carries the signing key, and a log is
+    # the wrong place for it - journald keeps it, a support bundle copies it,
+    # and anyone who has ever read a log has then had the key. `python -m
+    # thirdeye.pairing` prints the real thing to a terminal on demand.
+    log.info("pairing payload (key redacted; run python -m thirdeye.pairing for the real one):")
+    log.info("  %s", json.dumps(pairing_payload(redacted=True)))
     await recorder.start()
     tasks = [
         asyncio.create_task(_timeout_loop(), name="delivery-timeouts"),
@@ -129,20 +179,20 @@ class StartMatch(BaseModel):
     venue: str | None = None
 
 
-@app.post("/api/session/start")
+@app.post("/api/session/start", dependencies=[Depends(require_signature)])
 async def api_start(body: StartMatch) -> dict[str, Any]:
     match_id = session.start_match(body.venue)
     await hub.broadcast(_hello_payload())
     return {"match_id": match_id}
 
 
-@app.post("/api/session/end")
+@app.post("/api/session/end", dependencies=[Depends(require_signature)])
 async def api_end() -> dict[str, Any]:
     session.end_match()
     return {"ok": True}
 
 
-@app.get("/api/session")
+@app.get("/api/session", dependencies=[Depends(require_signature)])
 def api_session() -> dict[str, Any]:
     return {
         "match_id": session.match_id,
@@ -153,12 +203,12 @@ def api_session() -> dict[str, Any]:
     }
 
 
-@app.get("/api/clips")
+@app.get("/api/clips", dependencies=[Depends(require_signature)])
 def api_clips() -> list[dict[str, Any]]:
     return [clip.meta.model_dump() for clip in store.all()]
 
 
-@app.get("/clips/{seq}.mp4")
+@app.get("/clips/{seq}.mp4", dependencies=[Depends(require_signature)])
 def api_clip_file(seq: int, range: str | None = Header(default=None)):  # noqa: A002
     clip = store.get(seq)
     if clip is None:
@@ -167,6 +217,26 @@ def api_clip_file(seq: int, range: str | None = Header(default=None)):  # noqa: 
 
 
 # ---------- WebSocket ----------
+
+
+def pairing_payload(*, redacted: bool = False) -> dict[str, Any]:
+    """What goes in the QR code taped to the vest.
+
+    Including the signing key, which is the only place it is ever revealed. It
+    does not appear on any route: an endpoint that hands out the key would undo
+    the point of having one. `redacted=True` is for anything that gets written
+    down - the startup banner, a bug report - and keeps the shape without the
+    secret, so you can still see that the code is well formed.
+    """
+    return {
+        "v": PROTOCOL_VERSION,
+        "ssid": f"thirdeye-{settings.camera_id}",
+        "password": "set-in-hostapd.conf",
+        "host": "192.168.43.1",
+        "camera_id": settings.camera_id,
+        "psk": "<redacted>" if redacted else signing_key,
+        "end": "bowlers",
+    }
 
 
 def _hello_payload() -> dict[str, Any]:
@@ -185,6 +255,24 @@ def _hello_payload() -> dict[str, Any]:
 
 @app.websocket("/ws")
 async def websocket(socket: WebSocket) -> None:
+    # The control channel is signed on the query string rather than in headers.
+    # A browser and a React Native WebSocket cannot set headers on the opening
+    # request, so the one thing every client can carry is the URL.
+    reason = verifier.check(
+        method="GET",
+        path="/ws",
+        timestamp=socket.query_params.get("ts"),
+        nonce=socket.query_params.get("nonce"),
+        signature=socket.query_params.get("sig"),
+        now=time.time(),
+    )
+    if reason is not None:
+        log.warning("refused a control channel: %s", reason)
+        # 1008 is "policy violation". Closing before accepting means an
+        # unsigned client never gets far enough to hear a single clip.
+        await socket.close(code=1008, reason=reason)
+        return
+
     await socket.accept()
     await hub.add(socket)
     try:

@@ -51,6 +51,21 @@ class Settings(BaseSettings):
     """Clips held on disk. Announced to the phone in `hello` so it mirrors this
     rather than hardcoding a number of its own."""
 
+    require_signature: bool = True
+    """Refuse requests that are not signed with the pairing key.
+
+    On by default, and the deployment file keeps it on. The vest's Wi-Fi
+    passphrase is printed on a code taped to the vest, so joining the network
+    proves nothing about who you are; without this, anyone within range who
+    photographs that code can download footage of people.
+
+    There is an off switch because development needs one, and the vest says so
+    loudly at startup when it is used."""
+
+    key_path: Path = Path("/data/signing.key")
+    """Where the signing key lives. Owner-readable only, minted on first boot,
+    and never served over the API - it reaches the phone in the pairing code."""
+
     # Storage
     data_root: Path = Path("/data/matches")
     buffer_dir: Path = Path("/data/buffer")
