@@ -8,7 +8,7 @@ The software is finished and running. The only thing still pretending is the cam
 |---|---|
 | Phone app | 7,100 lines of TypeScript |
 | Vest service | 1,694 lines of Python |
-| Checks passing | 54 phone · 33 vest · 20 end-to-end |
+| Checks passing | 55 phone · 34 vest · 20 end-to-end |
 | Decisions recorded | 11 ADRs in [`docs/decisions/`](docs/decisions) |
 | Fakes remaining | 1 — the camera |
 
@@ -128,7 +128,7 @@ afford to be slow and careful rather than fast and fragile.
 | `capture/recorder.py` | One **ffmpeg** process writing one-second segments, started at boot and never stopped. Supervised: if it dies it restarts, and the fact that it died reaches the health report — a capture pipeline that stops *quietly* is the worst failure this system has. |
 | `capture/buffer.py` | Indexes those segments and answers two questions: which cover this window, and **is the window still here at all**. The second is answered honestly — a tap whose footage has been overwritten is *refused*, not turned into a short clip that looks fine. |
 | `capture/cutter.py` | Joins the covering segments into one file. A **stream copy, never a re-encode**: re-encoding forty seconds of 1080p would spend the entire between-balls budget. Copying is near-instant and the picture is bit-identical. |
-| `storage/clip_store.py` | Hashes each clip with SHA-256, writes a metadata sidecar, keeps twelve. Two exceptions: pinned clips, and clips the phone has never confirmed — at that moment the vest holds the **only** copy. |
+| `storage/clip_store.py` | Hashes each clip with SHA-256, writes a metadata sidecar — **measured from the file, not copied from config**, because the phone steps frames using the rate in it. Keeps twelve. Two exceptions: pinned clips, and clips the phone has never confirmed — at that moment the vest holds the **only** copy. |
 | `api/` | A WebSocket for messages, plain HTTP with **resume** for the files. Resume is not a nicety: restarting a nine-megabyte transfer because someone walked behind a sightscreen would not fit in the gap. |
 
 ### The phone — 7,100 lines of TypeScript
@@ -358,7 +358,7 @@ because uniform ones are precisely what hid it.
 | Database migration on a device | Correct schema and version |
 | The app runs on iOS | Real build, launches, screens render |
 | Permissions of the shipped app | Camera and local network only |
-| Tests | 54 phone, 33 vest, 20 end-to-end checks |
+| Tests | 55 phone, 34 vest, 20 end-to-end checks |
 
 ### ○ Not proven — and honestly so
 

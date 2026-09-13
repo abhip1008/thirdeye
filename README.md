@@ -130,7 +130,7 @@ bought.
 |---|---|
 | TypeScript, strict mode, unused locals and params on | 0 errors |
 | ESLint | clean |
-| Tests | 30 mobile, 10 vest, all passing |
+| Tests | 55 mobile, 34 vest, plus a 20-check end-to-end run |
 | Android production bundle | exports, sample clip included |
 | iOS production bundle | exports, sample clip included |
 | iOS app compiles for real | Xcode build of the generated project |
