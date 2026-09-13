@@ -93,6 +93,7 @@ export default function ClipScreen() {
   });
 
   const [position, setPosition] = useState(0);
+  const [loadedDuration, setLoadedDuration] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
   const [panel, setPanel] = useState<'none' | 'speed' | 'lines' | 'decision'>('none');
@@ -101,16 +102,33 @@ export default function ClipScreen() {
   const [big, setBig] = useState(false);
   const scrubbing = useRef(false);
 
-  const duration = clip?.duration_s ?? player?.duration ?? 0;
+  /* What the player has open beats what the record claims.
+     The record is written before the bytes arrive, so it can be wrong - and a
+     scrubber built on a wrong duration is worse than no scrubber: it reports
+     frame 0 of 873 for a clip with 108 in it, and every drag lands somewhere
+     other than where the finger went. */
+  const duration = loadedDuration > 0 ? loadedDuration : (clip?.duration_s ?? 0);
 
   useEffect(() => {
     const id = setInterval(() => {
-      if (!player || scrubbing.current) return;
+      if (!player) return;
+      const known = player.duration ?? 0;
+      if (known > 0) setLoadedDuration(known);
+      if (scrubbing.current) return;
       setPosition(player.currentTime ?? 0);
       setPlaying(player.playing ?? false);
     }, 60);
     return () => clearInterval(id);
   }, [player]);
+
+  /* Write the real duration back once, so the list stops showing the wrong one
+     too. Same idea as taking the resolution from the thumbnail: the file is the
+     authority on what the file contains. */
+  useEffect(() => {
+    if (!clip || loadedDuration <= 0) return;
+    if (Math.abs(loadedDuration - clip.duration_s) < 0.25) return;
+    void useClips.getState().correctDuration(clip.camera_id, clip.seq, loadedDuration);
+  }, [clip, loadedDuration]);
 
   useEffect(() => {
     if (!match || !clip) return;

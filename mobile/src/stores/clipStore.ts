@@ -45,6 +45,7 @@ interface ClipStore {
   pin: (cameraId: string, seq: number, reason: PinReason) => Promise<void>;
   unpin: (cameraId: string, seq: number) => Promise<void>;
   markReviewed: (cameraId: string, seq: number) => Promise<void>;
+  correctDuration: (cameraId: string, seq: number, seconds: number) => Promise<void>;
 
   sweep: () => Promise<void>;
   reset: () => void;
@@ -148,6 +149,16 @@ export const useClips = create<ClipStore>((set, get) => ({
     await q.markReviewed(clip.match_id, cameraId, seq);
     await audit('clip.reviewed', clip.match_id, { camera_id: cameraId, seq });
     replace(set, get, { ...clip, reviewed: true });
+  },
+
+  /** The player opened the file and it is not the length the record claims. */
+  correctDuration: async (cameraId, seq, seconds) => {
+    const clip = get().bySeq(cameraId, seq);
+    if (!clip || Math.abs(clip.duration_s - seconds) < 0.25) return;
+    log.debug('clips', `ball ${seq} is ${seconds.toFixed(1)}s, not ${clip.duration_s.toFixed(1)}s`);
+    const next: Clip = { ...clip, duration_s: Number(seconds.toFixed(3)) };
+    await q.upsertClip(next);
+    replace(set, get, next);
   },
 
   sweep: async () => {
