@@ -262,19 +262,14 @@ export default function ClipScreen() {
 
             <OverlayCanvas state={overlay} onChange={setOverlay} />
 
-            {/* Tall footage cannot fill the width inline - a clip this shape
-                needs the whole screen height to do that - so the way to a
-                closer look has to be obvious rather than a small glyph in a
-                corner. */}
             <Pressable
               onPress={() => setBig(true)}
               accessibilityRole="button"
               accessibilityLabel="Fill the screen"
-              hitSlop={12}
+              hitSlop={14}
               style={({ pressed }) => [s.expand, pressed && s.expandPressed]}
             >
               <Text style={s.expandGlyph}>⤢</Text>
-              <Text style={s.expandLabel}>Bigger</Text>
             </Pressable>
           </>
         ) : (
@@ -612,17 +607,15 @@ const s = StyleSheet.create({
     position: 'absolute',
     right: space.sm,
     bottom: space.sm,
-    minHeight: 38,
-    flexDirection: 'row',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(18,18,20,0.82)',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(18,18,20,0.78)',
   },
-  expandPressed: { backgroundColor: 'rgba(255,255,255,0.22)' },
-  expandGlyph: { color: colors.textOnDark, fontSize: 15, lineHeight: 18 },
-  expandLabel: { color: colors.textOnDark, fontSize: 13, fontWeight: '600' },
+  expandPressed: { backgroundColor: 'rgba(255,255,255,0.24)' },
+  expandGlyph: { color: colors.textOnDark, fontSize: 17, lineHeight: 20 },
 
   fsRoot: {
     position: 'absolute',

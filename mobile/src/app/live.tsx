@@ -175,11 +175,14 @@ export default function LiveScreen() {
           <Pressable
             onPress={() => mockRef.current?.grabLastSeconds()}
             accessibilityRole="button"
-            accessibilityLabel="Grab the last twenty seconds"
+            accessibilityLabel="Missed a ball? Keep the last twenty seconds"
             hitSlop={10}
             style={({ pressed }) => pressed && { opacity: 0.5 }}
           >
-            <Text style={[type.caption, { color: colors.accent }]}>Grab one</Text>
+            {/* "Grab one" said nothing about what you get. This is the recovery
+                for a ball nobody marked: the vest has been recording the whole
+                time, so the last twenty seconds are still there to keep. */}
+            <Text style={[type.caption, { color: colors.accent }]}>Keep last 20s</Text>
           </Pressable>
         )}
       </View>
