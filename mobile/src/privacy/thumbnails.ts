@@ -20,8 +20,6 @@ import { matchDir } from './storage';
  */
 
 const FRACTION = 0.45;
-/** Small enough to be cheap, large enough to tell two deliveries apart. */
-const WIDTH = 240;
 
 export function thumbFile(matchId: string, cameraId: string, seq: number): File {
   return new File(matchDir(matchId), `${cameraId}_${String(seq).padStart(4, '0')}.jpg`);
@@ -67,5 +65,3 @@ export async function makeThumbnail(
     return null;
   }
 }
-
-export const THUMB_WIDTH = WIDTH;

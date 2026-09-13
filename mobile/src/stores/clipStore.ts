@@ -216,7 +216,7 @@ async function download(set: Set, get: Get, clip: Clip) {
     });
 
     current = get().bySeq(clip.camera_id, clip.seq) ?? current;
-    const ready = await setStatus(set, get, current, 'ready', {
+    await setStatus(set, get, current, 'ready', {
       localPath: result.localPath,
       bytesLocal: result.bytesLocal,
       downloadedAt: Date.now() / 1000,
@@ -243,7 +243,6 @@ async function download(set: Set, get: Get, clip: Clip) {
         });
       }
     }
-    void ready;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     current = get().bySeq(clip.camera_id, clip.seq) ?? current;

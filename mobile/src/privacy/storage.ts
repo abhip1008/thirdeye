@@ -82,16 +82,6 @@ export function clipFileExists(localPath: string | null): boolean {
   }
 }
 
-/** Bytes already on disk for a resumable download, or 0. Drives `Range:`. */
-export function partialBytes(matchId: string, cameraId: string, seq: number): number {
-  try {
-    const f = partFile(matchId, cameraId, seq);
-    return f.exists ? (f.size ?? 0) : 0;
-  } catch {
-    return 0;
-  }
-}
-
 /**
  * Deletes a clip and anything derived from it. Returns bytes reclaimed.
  * Errors are swallowed and logged: a file that is already gone is a success,

@@ -1,9 +1,9 @@
 /**
  * Facts about the Phase 1 sample clip, with no reference to the file itself.
  *
- * Kept separate from `sampleAsset.ts` so that code which only needs to know the
- * frame rate does not drag a 250 KB binary into its module graph - which, among
- * other things, is what lets the mock vest be unit tested.
+ * Facts only, no reference to the file itself, so code that needs the frame
+ * rate does not drag a 250 KB binary into its module graph - which is what lets
+ * the mock vest be unit tested.
  *
  * The clip is synthetic on purpose: 1920x1200 at exactly 60 fps for 900 frames,
  * with a burnt-in frame counter, a marker that advances a fixed distance every
