@@ -33,6 +33,8 @@ export function DeliveryBar() {
   const abandoned = useDelivery((s) => s.abandoned);
   const busy = useDelivery((s) => s.busy);
   const state = useConnection((s) => s.state);
+  const refused = useConnection((s) => s.refused);
+  const lastRefusal = useConnection((s) => s.lastRefusal);
 
   const recording = ctx.state === 'recording';
   const pulse = useMemo(() => new Animated.Value(1), []);
@@ -69,14 +71,19 @@ export function DeliveryBar() {
 
   return (
     <View style={[s.wrap, { paddingBottom: Math.max(insets.bottom, space.md) }]}>
-      {(queued > 0 || abandoned > 0 || offline) && (
+      {(queued > 0 || abandoned > 0 || refused > 0 || offline) && (
         <View style={s.strip}>
-          <Text style={[type.caption, { color: colors.textMuted }]} numberOfLines={1}>
-            {queued > 0
-              ? `${queued} tap${queued === 1 ? '' : 's'} waiting for the vest · the footage is safe`
-              : abandoned > 0
-                ? `${abandoned} tap${abandoned === 1 ? '' : 's'} arrived too late to recover`
-                : 'Not connected · taps are being saved'}
+          <Text
+            style={[type.caption, { color: refused > 0 ? colors.danger : colors.textMuted }]}
+            numberOfLines={2}
+          >
+            {refused > 0
+              ? `${refused} tap${refused === 1 ? '' : 's'} made no clip — ${lastRefusal}`
+              : queued > 0
+                ? `${queued} tap${queued === 1 ? '' : 's'} waiting for the vest · the footage is safe`
+                : abandoned > 0
+                  ? `${abandoned} tap${abandoned === 1 ? '' : 's'} arrived too late to recover`
+                  : 'Not connected · taps are being saved'}
           </Text>
         </View>
       )}

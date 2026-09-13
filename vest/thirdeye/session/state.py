@@ -88,7 +88,11 @@ class Session:
         """Handle one edge of a delivery."""
         async with self._lock:
             if self.match_id is None:
+                # The phone thinks a match is on and this process does not -
+                # almost always because the vest restarted under a connected
+                # phone. Say so, rather than dropping the tap on the floor.
                 log.warning("marker for delivery %d with no match running", seq)
+                await self._refuse(seq, edge, "no_match", "the vest has no match running")
                 return
 
             age = time.time() - at
@@ -96,8 +100,9 @@ class Session:
                 # Refuse honestly. A marker whose footage has been overwritten
                 # would otherwise become an empty clip that looks like a fault.
                 log.warning("marker %d/%s is %.0fs old, past the buffer", seq, edge, age)
-                await self.emit(
-                    {"type": "marker_refused", "seq": seq, "edge": edge, "age_s": round(age, 1)}
+                await self._refuse(
+                    seq, edge, "too_old",
+                    f"held for {age:.0f}s, buffer reaches {self.settings.buffer_seconds:.0f}s",
                 )
                 return
 
@@ -171,10 +176,11 @@ class Session:
             result = await cut(self.buffer, window_start, end, destination)
         except BufferMiss as miss:
             log.warning("delivery %d: %s", seq, miss)
-            await self.emit({"type": "marker_refused", "seq": seq, "edge": "end", "reason": str(miss)})
+            await self._refuse(seq, "end", "buffer_miss", str(miss))
             return None
-        except Exception:  # noqa: BLE001 - one failed cut must not stop the match
+        except Exception as exc:  # noqa: BLE001 - one failed cut must not stop the match
             log.exception("delivery %d could not be cut", seq)
+            await self._refuse(seq, "end", "cut_failed", str(exc)[:200])
             return None
 
         clip = self.store.record(
@@ -205,6 +211,11 @@ class Session:
         for gone in self.store.purge():
             await self.emit({"type": "clip_expired", "seq": gone, "camera_id": self.store.camera_id})
         return clip
+
+    async def _refuse(self, seq: int, edge: MarkEdge, reason: str, detail: str) -> None:
+        await self.emit(
+            {"type": "marker_refused", "seq": seq, "edge": edge, "reason": reason, "detail": detail}
+        )
 
     async def _announce_state(self, seq: int, since: float) -> None:
         await self.emit(

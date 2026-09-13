@@ -57,6 +57,11 @@ export default function DiagnosticsScreen() {
             hint="Taps written down but not yet acknowledged by the vest."
             value={String(queued)}
           />
+          <SettingRow
+            label="Markers refused"
+            hint={connection.lastRefusal ? `Last: ${connection.lastRefusal}` : 'Taps the vest could not turn into a clip.'}
+            value={String(connection.refused)}
+          />
           {connection.protocolMismatch && (
             <Muted style={{ color: colors.danger }}>
               The vest speaks a newer protocol than this build. Update the app.

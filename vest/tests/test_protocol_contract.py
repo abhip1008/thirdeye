@@ -54,7 +54,10 @@ def test_every_server_message_parses(fixture: dict) -> None:
     for raw in fixture["server_messages"]:
         message = server_adapter.validate_python(raw)
         seen.add(message.type)
-    assert seen == {"hello", "clip_ready", "clip_expired", "session_state", "status", "pong"}
+    assert seen == {
+        "hello", "clip_ready", "clip_expired", "session_state",
+        "marker_refused", "status", "pong",
+    }
 
 
 def test_every_client_message_parses(fixture: dict) -> None:

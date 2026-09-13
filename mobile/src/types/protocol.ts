@@ -32,6 +32,10 @@ export const UmpireEnd_VALUES = ["bowlers", "square_leg"] as const;
 export type MarkEdge = "start" | "end";
 export const MarkEdge_VALUES = ["start", "end"] as const;
 
+/** Why the vest could not use a marker. Every value is something the phone can explain to the umpire, because a tap that produced nothing and said nothing is the failure this whole design exists to avoid. */
+export type RefusalReason = "no_match" | "too_old" | "buffer_miss" | "cut_failed";
+export const RefusalReason_VALUES = ["no_match", "too_old", "buffer_miss", "cut_failed"] as const;
+
 /** Why a clip is exempt from auto-purge. Free-text is not allowed: pin reasons end up in an audit log and must be enumerable. */
 export type PinReason = "wicket" | "review" | "no_ball" | "incident" | "other";
 export const PinReason_VALUES = ["wicket", "review", "no_ball", "incident", "other"] as const;
@@ -125,6 +129,21 @@ export interface ClipExpiredMessage {
   camera_id: string;
 }
 
+/**
+ * A marker arrived and produced no clip.
+ * 
+ * The vest used to drop these silently. That is the worst thing it can do: the umpire taps, nothing appears, and there is nothing anywhere to say why. Refusing out loud lets the phone put a reason on screen and decide whether to try again.
+ */
+export interface MarkerRefusedMessage {
+  v: number;
+  type: "marker_refused";
+  seq: number;
+  edge: MarkEdge;
+  reason: RefusalReason;
+  /** Free text for the diagnostics screen. Never shown to the umpire. */
+  detail?: string | null;
+}
+
 
 export interface SessionStateMessage {
   v: number;
@@ -208,6 +227,7 @@ export type ServerMessage =
   | ClipReadyMessage
   | ClipExpiredMessage
   | SessionStateMessage
+  | MarkerRefusedMessage
   | StatusMessage
   | PongMessage;
 
@@ -262,6 +282,12 @@ const SERVERMESSAGE_REQUIRED: Record<string, readonly string[]> = {
     "seq",
     "since",
     "camera_id"
+  ],
+  "marker_refused": [
+    "v",
+    "seq",
+    "edge",
+    "reason"
   ],
   "status": [
     "v",

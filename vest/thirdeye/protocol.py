@@ -36,6 +36,10 @@ UmpireEnd_VALUES: tuple[str, ...] = ("bowlers", "square_leg",)
 MarkEdge = Literal["start", "end"]
 MarkEdge_VALUES: tuple[str, ...] = ("start", "end",)
 
+# Why the vest could not use a marker. Every value is something the phone can explain to the umpire, because a tap that produced nothing and said nothing is the failure this whole design exists to avoid.
+RefusalReason = Literal["no_match", "too_old", "buffer_miss", "cut_failed"]
+RefusalReason_VALUES: tuple[str, ...] = ("no_match", "too_old", "buffer_miss", "cut_failed",)
+
 # Why a clip is exempt from auto-purge. Free-text is not allowed: pin reasons end up in an audit log and must be enumerable.
 PinReason = Literal["wicket", "review", "no_ball", "incident", "other"]
 PinReason_VALUES: tuple[str, ...] = ("wicket", "review", "no_ball", "incident", "other",)
@@ -116,6 +120,22 @@ class ClipExpiredMessage(BaseModel):
     type: Literal["clip_expired"] = "clip_expired"
     seq: int
     camera_id: str
+
+
+class MarkerRefusedMessage(BaseModel):
+    """
+    A marker arrived and produced no clip.
+    
+    The vest used to drop these silently. That is the worst thing it can do: the umpire taps, nothing appears, and there is nothing anywhere to say why. Refusing out loud lets the phone put a reason on screen and decide whether to try again.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    v: int
+    type: Literal["marker_refused"] = "marker_refused"
+    seq: int
+    edge: MarkEdge
+    reason: RefusalReason
+    detail: str | None = Field(default=None, description="Free text for the diagnostics screen. Never shown to the umpire.")
 
 
 class SessionStateMessage(BaseModel):
@@ -200,7 +220,7 @@ class ResyncMessage(BaseModel):
 
 # Vest to phone. Unknown types are ignored, never an error, so either side upgrades independently.
 ServerMessage = Annotated[
-    Union[HelloMessage, ClipReadyMessage, ClipExpiredMessage, SessionStateMessage, StatusMessage, PongMessage],
+    Union[HelloMessage, ClipReadyMessage, ClipExpiredMessage, SessionStateMessage, MarkerRefusedMessage, StatusMessage, PongMessage],
     Field(discriminator="type"),
 ]
 
@@ -231,6 +251,7 @@ __all__ = [
     "ConnectionState",
     "UmpireEnd",
     "MarkEdge",
+    "RefusalReason",
     "PinReason",
     "AppealType",
     "Decision",
@@ -239,6 +260,7 @@ __all__ = [
     "HelloMessage",
     "ClipReadyMessage",
     "ClipExpiredMessage",
+    "MarkerRefusedMessage",
     "SessionStateMessage",
     "StatusMessage",
     "PongMessage",

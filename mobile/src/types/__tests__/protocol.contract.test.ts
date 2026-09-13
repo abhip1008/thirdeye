@@ -27,7 +27,15 @@ describe('protocol v1 contract', () => {
       return parsed!.type;
     });
     expect(new Set(types)).toEqual(
-      new Set(['hello', 'clip_ready', 'clip_expired', 'session_state', 'status', 'pong'])
+      new Set([
+        'hello',
+        'clip_ready',
+        'clip_expired',
+        'session_state',
+        'marker_refused',
+        'status',
+        'pong',
+      ])
     );
   });
 

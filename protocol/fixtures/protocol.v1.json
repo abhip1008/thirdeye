@@ -75,6 +75,14 @@
       "type": "pong",
       "t": 1757193045.1,
       "vest_time": 1757193045.44
+    },
+    {
+      "v": 1,
+      "type": "marker_refused",
+      "seq": 11,
+      "edge": "end",
+      "reason": "too_old",
+      "detail": "held for 412s, buffer reaches 300s"
     }
   ],
   "client_messages": [

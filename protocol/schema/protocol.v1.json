@@ -35,6 +35,11 @@
       "description": "Which edge of a delivery a marker represents. The umpire marks the start and the end from the app; the vest cuts the clip out of its rolling buffer afterwards.",
       "enum": ["start", "end"]
     },
+    "RefusalReason": {
+      "type": "string",
+      "description": "Why the vest could not use a marker. Every value is something the phone can explain to the umpire, because a tap that produced nothing and said nothing is the failure this whole design exists to avoid.",
+      "enum": ["no_match", "too_old", "buffer_miss", "cut_failed"]
+    },
     "PinReason": {
       "type": "string",
       "description": "Why a clip is exempt from auto-purge. Free-text is not allowed: pin reasons end up in an audit log and must be enumerable.",
@@ -132,6 +137,20 @@
         "type": { "const": "clip_expired" },
         "seq": { "type": "integer" },
         "camera_id": { "type": "string" }
+      }
+    },
+    "MarkerRefusedMessage": {
+      "type": "object",
+      "description": "A marker arrived and produced no clip.\n\nThe vest used to drop these silently. That is the worst thing it can do: the umpire taps, nothing appears, and there is nothing anywhere to say why. Refusing out loud lets the phone put a reason on screen and decide whether to try again.",
+      "additionalProperties": false,
+      "required": ["v", "type", "seq", "edge", "reason"],
+      "properties": {
+        "v": { "type": "integer" },
+        "type": { "const": "marker_refused" },
+        "seq": { "type": "integer" },
+        "edge": { "$ref": "#/$defs/MarkEdge" },
+        "reason": { "$ref": "#/$defs/RefusalReason" },
+        "detail": { "type": ["string", "null"], "description": "Free text for the diagnostics screen. Never shown to the umpire." }
       }
     },
     "SessionStateMessage": {
@@ -234,6 +253,7 @@
         { "$ref": "#/$defs/ClipReadyMessage" },
         { "$ref": "#/$defs/ClipExpiredMessage" },
         { "$ref": "#/$defs/SessionStateMessage" },
+        { "$ref": "#/$defs/MarkerRefusedMessage" },
         { "$ref": "#/$defs/StatusMessage" },
         { "$ref": "#/$defs/PongMessage" }
       ]

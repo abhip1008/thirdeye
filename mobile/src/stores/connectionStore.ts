@@ -13,6 +13,8 @@ import type {
 import { PROTOCOL_VERSION } from '@/types/protocol';
 
 import { useClips } from './clipStore';
+import { useMatch } from './matchStore';
+import { usePairing } from './pairingStore';
 
 /**
  * Owns the control channel and nothing else.
@@ -41,6 +43,9 @@ interface ConnectionStore {
   rttMs: number | null;
   /** Set when the vest speaks a protocol version this build cannot understand. */
   protocolMismatch: boolean;
+  /** Markers the vest could not use, with the last reason it gave. */
+  refused: number;
+  lastRefusal: string | null;
 
   /**
    * Seconds to add to this phone's clock to get the vest's.
@@ -84,6 +89,8 @@ export const useConnection = create<ConnectionStore>((set, get) => ({
   protocolMismatch: false,
   clockOffset: 0,
   clockOffsetRttMs: null,
+  refused: 0,
+  lastRefusal: null,
 
   attach: (transport) => {
     get().detach();
@@ -139,6 +146,30 @@ export const useConnection = create<ConnectionStore>((set, get) => ({
   },
 }));
 
+/** Plain language for the umpire. The detail goes to diagnostics instead. */
+const REFUSAL_COPY: Record<string, string> = {
+  no_match: 'the vest was restarted',
+  too_old: 'it waited too long to reach the vest',
+  buffer_miss: 'the vest had already recorded over it',
+  cut_failed: 'the vest could not cut it',
+};
+
+/**
+ * Tell the vest a match is running.
+ *
+ * Called when the vest says it has none. The two sides keep their own match
+ * identifiers, so this is not a handshake - it is the phone making sure the
+ * vest is in a state where a tap means something.
+ */
+async function adoptVest(): Promise<void> {
+  const match = useMatch.getState().match;
+  const host = usePairing.getState().host;
+  if (!match || match.endedAt !== null || !host) return;
+  log.warn('link', 'the vest has no match running; starting one');
+  const { startVestSession } = await import('@/net/vestApi');
+  await startVestSession(host, match.venue ?? '');
+}
+
 function handle(
   set: (p: Partial<ConnectionStore>) => void,
   get: () => ConnectionStore,
@@ -160,6 +191,13 @@ function handle(
       if (message.protocol > PROTOCOL_VERSION) {
         log.warn('link', `vest speaks protocol ${message.protocol}, this build speaks ${PROTOCOL_VERSION}`);
       }
+
+      /* The vest has no match but this phone does. That means the vest
+         restarted underneath a connected phone - which it is built to survive,
+         and which until now left every tap being refused with the umpire seeing
+         nothing at all. Tell it again. `hello` arrives on every reconnect, so
+         this covers the case without a timer or a poll. */
+      if (message.match_id === null) void adoptVest();
       break;
 
     case 'session_state':
@@ -181,6 +219,17 @@ function handle(
     case 'status':
       set({ health: message.health });
       break;
+
+    case 'marker_refused': {
+      // A tap that produced nothing. The umpire must not have to guess.
+      const count = get().refused + 1;
+      set({ refused: count, lastRefusal: REFUSAL_COPY[message.reason] ?? 'the vest could not use it' });
+      log.warn('link', `the vest refused marker ${message.seq}/${message.edge}`, {
+        reason: message.reason,
+        detail: message.detail,
+      });
+      break;
+    }
 
     case 'pong': {
       const now = Date.now() / 1000;
