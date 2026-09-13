@@ -1,0 +1,30 @@
+[Unit]
+Description=Third Eye vest
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=thirdeye
+WorkingDirectory=/opt/thirdeye
+EnvironmentFile=/etc/thirdeye.env
+ExecStart=/opt/thirdeye/.venv/bin/uvicorn thirdeye.main:app --host 127.0.0.1 --port 8000
+
+# It has to come back. This runs unattended, in the rain, on a battery, and the
+# difference between a restart and a lost innings is this line.
+Restart=always
+RestartSec=2
+
+# The recorder is the one thing that must not be starved.
+Nice=-5
+IOSchedulingClass=best-effort
+IOSchedulingPriority=2
+
+# It writes video and nothing else.
+ProtectSystem=strict
+ReadWritePaths=/data
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

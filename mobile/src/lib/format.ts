@@ -9,7 +9,5 @@ export const clock = (s: number): string => {
 
 export const megabytes = (bytes: number): string => `${(bytes / 1_000_000).toFixed(1)} MB`;
 
-export const percent = (n: number): string => `${Math.round(n)}%`;
-
 export const timeOfDay = (unixSeconds: number): string =>
   new Date(unixSeconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

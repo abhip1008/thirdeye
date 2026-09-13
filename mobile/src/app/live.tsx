@@ -2,10 +2,10 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import Svg, { Rect } from 'react-native-svg';
 
 import { ClipRow } from '@/components/ClipRow';
 import { EmptyState, Screen } from '@/components/ui';
-import { percent } from '@/lib/format';
 import { MockDownloader } from '@/mock/mockDownloader';
 import { MockTransport } from '@/mock/mockTransport';
 import { HttpDownloader } from '@/net/httpDownloader';
@@ -130,21 +130,21 @@ export default function LiveScreen() {
           <Text style={[type.body, { color: colors.accent }]}>Settings</Text>
         </Pressable>
 
-        {/* Link and battery only. Temperature, frame rate and the rest live on
-            the diagnostics screen, where someone is actually looking for them. */}
+        {/* Link and vest battery only. Temperature, frame rate and the rest
+            live on the diagnostics screen, where someone is looking for them. */}
         <Pressable
           onPress={() => router.push('/diagnostics')}
           accessibilityRole="button"
-          accessibilityLabel={`Link ${state}. Diagnostics.`}
+          accessibilityLabel={
+            health
+              ? `Link ${state}. Vest battery ${Math.round(health.battery_pct)} percent. Diagnostics.`
+              : `Link ${state}. Diagnostics.`
+          }
           hitSlop={12}
           style={({ pressed }) => [s.link, pressed && { opacity: 0.5 }]}
         >
           <View style={[s.dot, { backgroundColor: linkTint }]} />
-          {health ? (
-            <Text style={[type.caption, { color: colors.textMuted }]}>
-              {percent(health.battery_pct)}
-            </Text>
-          ) : null}
+          {health ? <VestBattery percent={health.battery_pct} /> : null}
         </Pressable>
 
         <Pressable
@@ -188,6 +188,35 @@ export default function LiveScreen() {
         )}
       />
     </Screen>
+  );
+}
+
+/**
+ * The vest's battery, not the phone's.
+ *
+ * It was a bare percentage next to a coloured dot, and the first person to see
+ * it asked what it meant - which is a fair question of a number with no unit
+ * beside a dot that could stand for anything. The glyph says which quantity it
+ * is without spending a word on it, and it is the one indicator here that is
+ * about the thing on the umpire's chest rather than the thing in their hand.
+ *
+ * It fills and empties as well as changing colour, so it still reads when the
+ * red does not.
+ */
+function VestBattery({ percent: pct }: { percent: number }) {
+  const level = Math.max(0, Math.min(100, pct));
+  const low = level <= 20;
+  const tint = low ? colors.danger : colors.textMuted;
+
+  return (
+    <View style={s.battery}>
+      <Svg width={22} height={11}>
+        <Rect x={0.5} y={0.5} width={18} height={10} rx={2.5} stroke={tint} strokeWidth={1} fill="none" />
+        <Rect x={20} y={3.5} width={2} height={4} rx={1} fill={tint} />
+        <Rect x={2} y={2} width={(level / 100) * 15} height={7} rx={1} fill={tint} />
+      </Svg>
+      <Text style={[type.caption, { color: tint }]}>{Math.round(level)}%</Text>
+    </View>
   );
 }
 
@@ -236,7 +265,8 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: space.md,
   },
-  link: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  link: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  battery: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   dot: { width: 9, height: 9, borderRadius: 5 },
 
   listHead: { paddingTop: space.xl, paddingBottom: space.md },

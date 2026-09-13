@@ -42,6 +42,7 @@ class Recorder:
         self.ffmpeg = ffmpeg
 
         self._process: asyncio.subprocess.Process | None = None
+        self._producer: asyncio.subprocess.Process | None = None
         self._tasks: list[asyncio.Task[None]] = []
         self._started_at: float | None = None
         self.restarts = 0
@@ -87,16 +88,26 @@ class Recorder:
         by the naming below, which stays accurate because segment length is
         fixed.
         """
-        codec = self.encoder or "libx264"
         args = [self.ffmpeg, "-hide_banner", "-loglevel", "warning", "-nostdin", "-y"]
         args += self.source.input_args()
-        args += self.source.output_filters()
+
+        if self.source.preencoded:
+            # The frames are already H.264 - rpicam-vid compressed them on the
+            # way in. Re-encoding would spend the CPU twice and lose quality for
+            # nothing, so the segmenter copies the stream through. Keyframe
+            # spacing is the producer's job in this path, which is why
+            # rpicam-vid is asked for inline headers.
+            args += ["-an", "-c:v", "copy"]
+        else:
+            args += self.source.output_filters()
+            args += [
+                "-an",  # No microphone, ever. See docs/PRIVACY.md.
+                "-c:v", self.encoder or "libx264",
+                "-b:v", self.video_bitrate,
+                "-g", str(int(self.buffer.segment_seconds * 60)),
+                "-force_key_frames", f"expr:gte(t,n_forced*{self.buffer.segment_seconds})",
+            ]
         args += [
-            "-an",  # No microphone, ever. See docs/PRIVACY.md.
-            "-c:v", codec,
-            "-b:v", self.video_bitrate,
-            "-g", str(int(self.buffer.segment_seconds * 60)),
-            "-force_key_frames", f"expr:gte(t,n_forced*{self.buffer.segment_seconds})",
             "-f", "segment",
             "-segment_time", str(self.buffer.segment_seconds),
             "-segment_start_number", str(first_index),
@@ -114,11 +125,29 @@ class Recorder:
             start_time = time.time()
             index = self._next_index()
             try:
-                self._process = await asyncio.create_subprocess_exec(
-                    *self._command(index, start_time),
-                    stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.PIPE,
-                )
+                producer = self.source.producer_command()
+                if producer is None:
+                    self._process = await asyncio.create_subprocess_exec(
+                        *self._command(index, start_time),
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                else:
+                    # rpicam-vid owns the sensor and writes an encoded stream;
+                    # ffmpeg reads it from the pipe and only cuts it into
+                    # segments. Two processes, one of which we also have to
+                    # clean up - see _kill.
+                    self._producer = await asyncio.create_subprocess_exec(
+                        *producer,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    self._process = await asyncio.create_subprocess_exec(
+                        *self._command(index, start_time),
+                        stdin=self._producer.stdout,
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
                 self._started_at = start_time
                 stderr = await self._process.stderr.read() if self._process.stderr else b""
                 code = await self._process.wait()
@@ -150,10 +179,12 @@ class Recorder:
             await asyncio.sleep(max(1.0, self.buffer.segment_seconds))
 
     async def _kill(self) -> None:
-        if self._process is None or self._process.returncode is not None:
-            return
-        self._process.terminate()
-        with contextlib.suppress(asyncio.TimeoutError):
-            await asyncio.wait_for(self._process.wait(), timeout=3)
-        if self._process.returncode is None:
-            self._process.kill()
+        for process in (self._process, self._producer):
+            if process is None or process.returncode is not None:
+                continue
+            process.terminate()
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(process.wait(), timeout=3)
+            if process.returncode is None:
+                process.kill()
+        self._producer = None

@@ -67,6 +67,38 @@ Do not edit it. Run `npm run protocol` at the repo root.
 `tests/test_protocol_contract.py` parses the same golden fixture the phone's
 test does, including three shapes that must be rejected.
 
+## Putting it on a Raspberry Pi
+
+```bash
+sudo apt install ffmpeg python3-venv hostapd dnsmasq rpicam-apps
+git clone <this repo> /opt/thirdeye && cd /opt/thirdeye/vest
+python3 -m venv .venv && ./.venv/bin/pip install -e .
+
+# measure the board before trusting any of it
+../scripts/check-hardware.sh
+
+sudo cp deploy/hostapd.conf /etc/hostapd/hostapd.conf
+sudo cp deploy/dnsmasq.conf /etc/dnsmasq.d/thirdeye.conf
+sudo cp deploy/thirdeye.env /etc/thirdeye.env      # then edit it
+sudo cp deploy/systemd/thirdeye.service /etc/systemd/system/
+sudo systemctl enable --now hostapd dnsmasq thirdeye
+```
+
+Then set `THIRDEYE_SOURCE` in `/etc/thirdeye.env` to whichever camera
+`check-hardware.sh` found: `libcamera:0` for one on the ribbon connector,
+`camera:/dev/video0` for USB. Nothing else in the app changes - the phone finds
+the vest from its pairing code.
+
+> **Run `check-hardware.sh` before ordering anything.** The design assumed a
+> board with a video encoder on the chip. **A Raspberry Pi 5 has none** - the
+> encoder was removed - so every frame is compressed by the CPU, continuously,
+> for three hours, while that same CPU serves clips over Wi-Fi. A Pi 4 has an
+> H.264 encoder but tops out around 1080p30.
+>
+> A camera on the ribbon connector sidesteps a good deal of this: `rpicam-vid`
+> produces an encoded stream, and the recorder copies it through rather than
+> compressing it again. That path is already built.
+
 ## Before Phase 2
 
 Three things have to be measured on the actual hardware, and the timing budget
