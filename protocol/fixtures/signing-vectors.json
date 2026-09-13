@@ -1,0 +1,34 @@
+[
+  {
+    "key": "abababababababababababababababababababababababababababababababab",
+    "method": "GET",
+    "path": "/clips/9.mp4",
+    "timestamp": "1800000000",
+    "nonce": "deadbeef",
+    "expected": "d3ba74d209d33c3eb21a06f6efe3a01513f89c3a2241b97a1eee9fbd205c197c"
+  },
+  {
+    "key": "0000000000000000000000000000000000000000000000000000000000000000",
+    "method": "POST",
+    "path": "/api/session/start",
+    "timestamp": "1789000123",
+    "nonce": "cafe",
+    "expected": "576d97619d6b454f3900d4e40907e4bef464cf2a43b8c76cd202df0da87bbbb6"
+  },
+  {
+    "key": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "method": "GET",
+    "path": "/ws",
+    "timestamp": "1",
+    "nonce": "n",
+    "expected": "f49dd915f571c883ce56f87426c903a50cc47e7c7a4c5279ba5521b639593545"
+  },
+  {
+    "key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "method": "GET",
+    "path": "/clips/12.mp4",
+    "timestamp": "1800000042",
+    "nonce": "a1b2c3d4e5f6",
+    "expected": "e6b3e3810f95de239e640a675d5c2278a80ad60c0c63d2b5de3677a4c970ab20"
+  }
+]
