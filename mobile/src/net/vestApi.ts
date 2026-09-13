@@ -1,5 +1,7 @@
 import { log } from '@/lib/log';
 
+import { signedHeaders } from './signing';
+
 /**
  * The few things the phone asks of the vest over plain HTTP rather than the
  * control channel. Everything ongoing goes over the WebSocket; these are the
@@ -24,6 +26,9 @@ export interface VestHealth {
 export async function vestHealth(host: string, ms = 4000): Promise<VestHealth | null> {
   const t = timeout(ms);
   try {
+    // Health is the one route the vest leaves unsigned: it is what the phone
+    // calls to find out whether there is a vest there at all, and it says
+    // nothing a stranger on the network could not learn by looking at the vest.
     const response = await fetch(`http://${host}/api/health`, { signal: t.signal });
     if (!response.ok) return null;
     return (await response.json()) as VestHealth;
@@ -47,7 +52,10 @@ export async function startVestSession(host: string, venue: string): Promise<str
   try {
     const response = await fetch(`http://${host}/api/session/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(await signedHeaders('POST', '/api/session/start')),
+      },
       body: JSON.stringify({ venue }),
       signal: t.signal,
     });

@@ -4,6 +4,8 @@ import { File } from 'expo-file-system';
 import { log } from '@/lib/log';
 import { clipFile, ensureMatchDir, partFile } from '@/privacy/storage';
 
+import { signedHeaders } from './signing';
+
 import type { DownloadRequest, DownloadResult, Downloader } from './transport';
 
 /**
@@ -24,6 +26,10 @@ import type { DownloadRequest, DownloadResult, Downloader } from './transport';
  * **It resumes.** The transfer has to fit in the gap between deliveries, and
  * restarting nine megabytes because somebody crossed in front of the umpire
  * would not fit.
+ *
+ * Each request is signed, including each resumed one - the signature covers the
+ * method and path, so a retry of the same clip signs the same two lines with a
+ * fresh timestamp and nonce, and the vest treats it as the new request it is.
  */
 export class HttpDownloader implements Downloader {
   readonly isMock = false;
@@ -51,7 +57,10 @@ export class HttpDownloader implements Downloader {
     }
 
     const response = await fetch(url, {
-      headers: already > 0 ? { Range: `bytes=${already}-` } : {},
+      headers: {
+        ...(await signedHeaders('GET', `/clips/${req.seq}.mp4`)),
+        ...(already > 0 ? { Range: `bytes=${already}-` } : {}),
+      },
     });
 
     if (!response.ok && response.status !== 206) {
