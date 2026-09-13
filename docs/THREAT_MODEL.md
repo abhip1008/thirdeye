@@ -17,7 +17,7 @@ network called `thirdeye-vest-01`.
 | Clip video | Footage of identifiable people. The whole privacy story is about this. |
 | Decision log | Outlives the video. Says what an umpire decided and when. |
 | Vest Wi-Fi passphrase | Grants access to the AP, and from there to every clip |
-| Request signing key (`psk`) | From Phase 6, the thing that stops an unauthorised client |
+| Request signing key (`psk`) | The thing that stops an unauthorised client. Shipped: every revealing or changing request is signed with it. |
 | The rolling buffer | Five minutes of continuous footage of everyone in frame, held on the vest at all times. Larger than any single clip, and it exists whether or not anyone marked a delivery. |
 | Match availability | A vest that stops mid-match is a product failure, not a security one, but the same causes produce both |
 
@@ -44,15 +44,25 @@ Radxa image, and anyone willing to spend more than the $400 the hardware costs.
 
 *Risk:* anyone in range associates and reaches the clip HTTP endpoint.
 
-Today this is the largest hole. nginx serves `/clips/` to whoever asks, and the
-only barrier is the WPA2 passphrase printed on a QR code on the vest, which
-every player standing near the umpire can photograph.
+This was the largest hole, because the WPA2 passphrase is printed on a code on
+the vest and every player standing near the umpire can photograph it. Joining
+the network was, by itself, the whole of the authorisation check.
 
-**Mitigation, Phase 6:** HMAC-signed requests using a `psk` distributed in the
-same pairing payload but never displayed. The field already exists in
-`PairingPayload` and in `privacy/secrets.ts`, so this is not a protocol change.
-Until then the honest statement is that anyone on the AP can pull clips, and the
-AP should be treated as the trust boundary.
+**Closed.** Every request that reveals or changes anything carries
+`HMAC-SHA256(key, "METHOD\npath\ntimestamp\nnonce")`, and the vest refuses
+what it cannot verify. The key is minted on the vest, mode `0600`, on no route
+and not in the log; it reaches the phone in the pairing code and lives in the
+phone's keystore. Details in `docs/decisions/0006-lan-transport-security.md`.
+
+A captured signature does not help: the vest refuses a timestamp more than 300
+seconds from its own clock and remembers the last 4096 nonces, so a replay is
+refused, and the method and path are signed, so a signature cannot be moved from
+`/api/health` to `/clips/4.mp4`.
+
+*Remaining:* the key is shared, not per-phone. A phone that was legitimately
+paired and then should not be any more can only be cut off by re-keying the vest
+and re-pairing the phones that should keep working. For one vest and one
+umpire's phone that is proportionate; for a fleet it is not.
 
 *Also:* the AP has no route to the internet, so a joined device gains reach to
 the vest and nothing else.
@@ -62,9 +72,15 @@ the vest and nothing else.
 *Risk:* a rogue client sends `pin` or `ack` messages and confuses retention.
 
 The worst case is a clip kept that should have been purged, or a clip purged
-that the phone had not actually received. The same HMAC closes this. The `ack`
-carries a SHA-256 the attacker would have to know, which raises the bar on the
-second case specifically.
+that the phone had not actually received.
+
+**Closed, at the door rather than per message.** The handshake itself is signed,
+in the query string, because neither React Native nor a browser can put headers
+on a WebSocket upgrade. The vest verifies before it accepts, so a client without
+the key never receives a `clip_ready` and never learns a clip exists - which
+matters more than it being unable to send one. Once a channel is open, every
+message on it came from a holder of the key, so individual messages are not
+signed again.
 
 ### Delivery markers
 
@@ -76,8 +92,8 @@ which is a straightforward win.
 producing clips of nothing or fragmenting real deliveries.
 
 The consequence is nuisance rather than exposure - it makes clips worse, it does
-not reveal anything. The same Phase 6 request signing that closes the clip
-endpoint closes this, because a marker is just another signed request.
+not reveal anything. **Closed** by the same signing: a marker arrives on the
+control channel, and the control channel is not open to anyone without the key.
 
 *Worth noting:* because the vest records continuously, a hostile marker cannot
 destroy footage. It can only cause a bad cut, and the real delivery is still in
@@ -108,8 +124,12 @@ personal device.
 
 The payload is validated for shape but is not signed, so a fake code could point
 the phone at a different host. The consequence is a phone that downloads nothing
-useful, not a phone that leaks clips - it uploads nothing. Signing the payload is
-a Phase 6 item and is cheap; it is listed rather than urgent.
+useful, not a phone that leaks clips - it uploads nothing, and the key it would
+store is the attacker's own.
+
+Still open, still not urgent. What it costs the umpire is a pairing that does
+not work, which is visible immediately: the vest is unreachable and the app says
+so. Worth fixing when the pairing code gains a version bump for another reason.
 
 ### The audit trail
 

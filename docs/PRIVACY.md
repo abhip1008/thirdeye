@@ -134,7 +134,7 @@ worth making harder.
 
 ### 3.5 Secrets are not in the database
 
-The vest's Wi-Fi passphrase and, from Phase 6, the request-signing key go to the
+The vest's Wi-Fi passphrase and the request-signing key go to the
 platform keystore, never to SQLite and never to the Zustand store. They are read
 at the moment of use. The logger redacts anything keyed `password`, `psk`,
 `secret`, `token` or `authorization`, and truncates long hex strings, so
@@ -171,12 +171,12 @@ than merely different, and it is a Phase 3 problem, not a privacy one.
 | Who | Can see | How |
 |---|---|---|
 | The umpire holding the phone | The last 12 clips, the decision log | The app |
-| Another phone on the vest's access point | Nothing, once Phase 6 lands | HMAC-signed requests |
+| Another phone on the vest's access point | Nothing | Every request is HMAC-signed; an unsigned one is refused |
 | Anyone with physical access to an unlocked phone | The last 12 clips | Device lock is the control |
 | The league | The decision log, if exported | Phase 8, opt-in |
 | The project maintainer | Nothing | There is no telemetry |
 
-The gap in that table is the third row, and it is a real one. The mitigation is
+The gap in that table is now the third row, and it is a real one. The mitigation is
 a league-owned phone with a device passcode rather than an umpire's personal
 phone; see the open questions.
 
@@ -187,16 +187,24 @@ phone; see the open questions.
 During a match the phone associates with the vest's own access point and talks
 to one host. There is no route to the internet through that AP.
 
-Transport security on that link is an open decision, documented in
+Transport security on that link is decided and built, in
 `docs/decisions/0006-lan-transport-security.md`. The short version: you cannot
-get a real TLS certificate for `192.168.43.1`, so the options are plain HTTP
-with an Android cleartext exception, a pinned self-signed certificate, or HTTP
-plus an HMAC derived from the pairing QR. Phase 3 uses plain HTTP on a
-point-to-point link. **Phase 6 adds the HMAC before any real match**, because
-without it any phone that joins the AP can enumerate and download clips.
+get a real TLS certificate for `192.168.43.1`, so instead of a certificate the
+link uses plain HTTP with **every request signed** by a key that reaches the
+phone in the pairing code and lives in its keystore.
 
-The `psk` field already exists in the pairing payload and the `PairingPayload`
-type, unused, so adding it is not a protocol change.
+What that buys, in the terms this document cares about: photographing the code
+on the vest and joining the network is no longer enough to list or download
+footage of anybody. Requests without a valid signature are refused, replays are
+refused, and the control channel is refused before it opens - so an unauthorised
+device is not told that a clip exists, let alone given one.
+
+It is not confidentiality. The clip bytes themselves still cross the link in
+the clear, so somebody capturing raw Wi-Fi frames with the passphrase can
+reconstruct a clip they watched being transferred. That is a different and much
+harder attack than joining an open network and pressing download, and closing
+it means TLS on a private IP, which is the rejected option 2 in the ADR. It is
+written down here rather than implied away.
 
 ---
 
@@ -236,11 +244,10 @@ deleted.
 
 | Item | Phase | Note |
 |---|---|---|
-| HMAC-signed requests to the vest | 6 | The `psk` field already exists |
 | Vest-side ring purge and tmpfs janitor | 4 and 6 | The phone's purge does not depend on it |
 | Encryption at rest for pinned clips | 6 | Android FBE covers the common case first |
 | Cloud retention policy | 8 | Blocked on section 8 |
-| Signed pairing QR | 6 | Stops a phone pairing to a hostile AP |
+| Signed pairing QR | 6 | Stops a phone pairing to a hostile AP. The consequence today is a pairing that visibly does not work. |
 
 ---
 
