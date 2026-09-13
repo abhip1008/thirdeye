@@ -31,7 +31,7 @@ class Recorder:
         source: Source,
         buffer: RollingBuffer,
         *,
-        video_bitrate: str = "15M",
+        video_bitrate: str = "5M",
         encoder: str | None = None,
         ffmpeg: str = "ffmpeg",
     ) -> None:

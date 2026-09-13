@@ -185,9 +185,10 @@ class Session:
             ended_at=result.ended_at,
             closed_by=closed_by,
             preroll_s=self.settings.preroll_s_effective,
-            resolution=self.settings.resolution,
-            fps=self.settings.fps,
-            codec=self.settings.codec,
+            # Measured from the file just written, not asserted from config.
+            resolution=result.resolution,
+            fps=result.fps,
+            codec=result.codec,
         )
 
         await self.emit(

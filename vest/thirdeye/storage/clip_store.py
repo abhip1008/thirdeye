@@ -45,6 +45,14 @@ class ClipStore:
         self.camera_id = camera_id
         self.ring_size = ring_size
         self._clips: dict[int, StoredClip] = {}
+        self.last_measured_fps: float = 0.0
+        """The frame rate of the most recent clip, as probed from the file.
+
+        Reported in health. It is a real measurement rather than the configured
+        rate, which is the point: a pipeline that quietly drops from 60 fps to
+        12 without erroring is the worst failure this system has, and echoing
+        back the number someone typed into a config file would hide exactly
+        that. Zero until the first clip is cut."""
 
     # ---------- paths ----------
 
@@ -93,6 +101,7 @@ class ClipStore:
         )
         path.with_suffix(".json").write_text(meta.model_dump_json(indent=2))
 
+        self.last_measured_fps = fps
         stored = StoredClip(meta=meta, path=path)
         self._clips[seq] = stored
         log.info("clip %d stored: %.1fs, %d bytes", seq, meta.duration_s, meta.bytes)

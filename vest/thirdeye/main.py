@@ -46,6 +46,7 @@ session = Session(settings, buffer, store, emit=hub.broadcast)
 recorder = Recorder(
     source=Source.parse(settings.source),
     buffer=buffer,
+    video_bitrate=settings.video_bitrate,
     encoder=settings.encoder,
 )
 
@@ -59,10 +60,9 @@ def health() -> dict[str, Any]:
         "battery_pct": 100.0,          # No battery gauge off the vest hardware yet.
         "temp_c": 0.0,                 # Same: read from the thermal zone in Phase 2.
         "disk_free_gb": round(free / 1e9, 1),
-        # Measured, not configured. A pipeline that quietly drops from 60 fps to
-        # 12 without erroring is the worst failure mode this system has, so this
-        # number has to come from what is on disk rather than what was asked for.
-        "encoder_fps": settings.fps if recorder.running else 0.0,
+        # Probed from the last clip written, not read back from config. Zero
+        # until the first clip is cut, and zero again if the recorder has died.
+        "encoder_fps": store.last_measured_fps if recorder.running else 0.0,
         "clips_held": len(store.all()),
         "buffer_held_s": round(buffer.held_seconds(time.time()), 1),
     }

@@ -14,6 +14,7 @@ the clip's metadata rather than rounded away.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,10 +38,40 @@ class Cut:
     path: Path
     started_at: float
     ended_at: float
+    resolution: str
+    fps: float
+    codec: str
 
     @property
     def duration(self) -> float:
         return self.ended_at - self.started_at
+
+
+async def probe(path: Path, *, ffprobe: str = "ffprobe") -> tuple[str, float, str]:
+    """What the file actually contains, rather than what was configured.
+
+    The vest used to report its configured camera settings in every clip's
+    metadata. That is a guess dressed as a fact: it is wrong whenever the source
+    is not the camera, and the phone was quietly correcting it afterwards from
+    the thumbnail. One ffprobe per clip costs a few milliseconds and makes the
+    sidecar true, which matters because the phone steps frames using the rate in
+    it.
+    """
+    process = await asyncio.create_subprocess_exec(
+        ffprobe, "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=width,height,avg_frame_rate,codec_name",
+        "-of", "json", str(path),
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+    )
+    stdout, _ = await process.communicate()
+    try:
+        stream = json.loads(stdout)["streams"][0]
+        num, _, den = str(stream.get("avg_frame_rate", "0/1")).partition("/")
+        fps = float(num) / float(den) if float(den or 0) else 0.0
+        return f"{stream['width']}x{stream['height']}", round(fps, 3), stream["codec_name"]
+    except Exception:  # noqa: BLE001 - a clip that will not probe is still a clip
+        log.warning("could not probe %s", path.name)
+        return "unknown", 0.0, "unknown"
 
 
 async def cut(
@@ -89,8 +120,12 @@ async def cut(
     if process.returncode != 0 or not destination.exists():
         raise RuntimeError(f"cut failed: {stderr.decode(errors='replace').strip()[-400:]}")
 
+    resolution, fps, codec = await probe(destination)
     return Cut(
         path=destination,
         started_at=segments[0].started_at,
         ended_at=segments[-1].ended_at,
+        resolution=resolution,
+        fps=fps,
+        codec=codec,
     )

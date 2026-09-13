@@ -58,17 +58,18 @@ class Settings(BaseSettings):
     this board, and unlike the old 20-second pre-roll ring this buffer is now
     load-bearing: it is the only copy of a delivery until a marker arrives."""
 
-    # Network
-    api_host: str = "127.0.0.1"
-    api_port: int = 8000
-    """nginx terminates :80 and proxies here. Binding to loopback means the
-    FastAPI process is not directly reachable from the access point."""
+    video_bitrate: str = "5M"
+    """Review quality, not archive quality.
 
-    # What the encoder is actually producing. Reported in clip metadata so the
-    # phone can step exactly one frame without guessing the rate.
-    resolution: str = "1920x1200"
-    fps: float = 60.0
-    codec: str = "h264"
+    Five megabits is about 9.5 MB for a fifteen-second delivery, which is the
+    number the whole timing budget is built on: it crosses the link in about
+    three seconds and leaves the rest of the gap spare. The first version of
+    this recorded at 15 Mbps and produced 25 MB clips - two and a half times the
+    design - which still fit in the gap but spent margin nobody had asked to
+    spend.
+
+    The 15 Mbps archive copy the spec describes stays on the vest and is not
+    built yet; when it is, it is a second encode, not this one."""
 
     segment_seconds: float = 1.0
     """Length of one buffer fragment, and therefore the largest error a cut can
@@ -82,9 +83,6 @@ class Settings(BaseSettings):
     """Force a specific ffmpeg encoder. On the vest this is the hardware one;
     left unset it falls back to libx264, which is right everywhere else."""
 
-    heartbeat_seconds: float = 5.0
-    """Also carries the clock sync. Every pong reports the vest's own time, and
-    the phone uses it to stamp markers in vest time rather than phone time."""
 
 
     @property

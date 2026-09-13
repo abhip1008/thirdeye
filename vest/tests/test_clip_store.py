@@ -85,6 +85,15 @@ def test_an_acknowledgement_with_the_right_hash_is_accepted(store: ClipStore) ->
     assert store.get(1).delivered is True
 
 
+def test_the_store_remembers_the_rate_it_actually_measured(store: ClipStore) -> None:
+    """Health reports this. Echoing back a configured rate would hide the one
+    failure that matters most - an encoder quietly dropping to a fraction of the
+    rate it was asked for, with nothing erroring."""
+    assert store.last_measured_fps == 0.0
+    add(store, 1)
+    assert store.last_measured_fps == pytest.approx(60.0)
+
+
 def test_hashing_a_file_matches_hashing_its_bytes(tmp_path: Path) -> None:
     path = tmp_path / "f.bin"
     payload = b"x" * (3 << 20)          # larger than one read block
