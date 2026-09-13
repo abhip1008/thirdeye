@@ -1,6 +1,6 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { ClipRow } from '@/components/ClipRow';
@@ -52,7 +52,6 @@ export default function LiveScreen() {
 
   const [openRow, setOpenRow] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const mockRef = useRef<MockTransport | null>(null);
 
   useEffect(() => {
     if (settings.screenGuard) void enableScreenGuard();
@@ -76,13 +75,9 @@ export default function LiveScreen() {
         ballIntervalSeconds: MOCK_INTERVALS[settings.mockSpeed],
         startingSeq: useClips.getState().clips[0]?.seq ?? 0,
       });
-      mockRef.current = transport;
       setDownloader(new MockDownloader());
       useConnection.getState().attach(transport);
-      return () => {
-        useConnection.getState().detach();
-        mockRef.current = null;
-      };
+      return () => useConnection.getState().detach();
     }
 
     const host = pairing.host;
@@ -164,27 +159,9 @@ export default function LiveScreen() {
       </View>
 
       <View style={s.listHead}>
-        {/* Just a count. "N of the last 12" reads as nonsense once kept and
-            reviewed clips push the total past the ring size. */}
         <Text style={[type.caption, { color: colors.textMuted }]}>
           {ready === 0 ? 'Nothing yet' : `${ready} ready`}
         </Text>
-        {settings.mockEnabled && (
-          /* Only the pretend vest can conjure a clip out of nowhere. Against a
-             real one this needs a recover endpoint, which is Phase 5. */
-          <Pressable
-            onPress={() => mockRef.current?.grabLastSeconds()}
-            accessibilityRole="button"
-            accessibilityLabel="Missed a ball? Keep the last twenty seconds"
-            hitSlop={10}
-            style={({ pressed }) => pressed && { opacity: 0.5 }}
-          >
-            {/* "Grab one" said nothing about what you get. This is the recovery
-                for a ball nobody marked: the vest has been recording the whole
-                time, so the last twenty seconds are still there to keep. */}
-            <Text style={[type.caption, { color: colors.accent }]}>Keep last 20s</Text>
-          </Pressable>
-        )}
       </View>
 
       <FlatList
@@ -262,13 +239,7 @@ const s = StyleSheet.create({
   link: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   dot: { width: 9, height: 9, borderRadius: 5 },
 
-  listHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: space.xl,
-    paddingBottom: space.md,
-  },
+  listHead: { paddingTop: space.xl, paddingBottom: space.md },
   list: { flex: 1 },
   listEmpty: { flexGrow: 1 },
 

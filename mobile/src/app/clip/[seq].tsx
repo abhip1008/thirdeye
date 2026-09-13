@@ -1,7 +1,14 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { Header } from '@/components/Header';
 import { OverlayCanvas, OverlayState, defaultOverlay } from '@/components/OverlayCanvas';
@@ -80,9 +87,12 @@ export default function ClipScreen() {
      nothing around the picture at all. Height is capped so the controls below
      always stay on screen; when the cap bites, the width follows it down. */
   const stage = useMemo(() => {
-    // What is left after the header, the scrubber, the keys and the row of
-    // panels, measured rather than guessed. Tall footage takes all of it.
-    const maxHeight = winHeight * 0.58;
+    // Leave room for the header and the controls. Measured rather than
+    // guessed: at 0.58 the screen overflowed by nine points with nothing open
+    // and seventy-seven with a panel, which put the decision buttons off the
+    // bottom of an unscrollable screen - on the one screen where the decision
+    // is the entire point.
+    const maxHeight = winHeight * 0.52;
     const width = Math.min(winWidth, maxHeight * aspect);
     return { width, height: width / aspect };
   }, [winWidth, winHeight, aspect]);
@@ -298,7 +308,11 @@ export default function ClipScreen() {
       )}
 
       {playable && (
-        <View style={s.controls}>
+        <ScrollView
+          style={s.controlsScroll}
+          contentContainerStyle={s.controls}
+          showsVerticalScrollIndicator={false}
+        >
           <Scrubber
             position={position}
             duration={duration}
@@ -374,7 +388,7 @@ export default function ClipScreen() {
               <Option label="Unclear" selected={decision === 'inconclusive'} onPress={() => void recordDecision('inconclusive')} />
             </Panel>
           )}
-        </View>
+        </ScrollView>
       )}
     </Screen>
   );
@@ -601,7 +615,8 @@ function parseRouteKey(raw: string | undefined): { cameraId: string; seq: number
 const s = StyleSheet.create({
   stage: { alignSelf: 'center', backgroundColor: colors.black, justifyContent: 'center' },
   notReady: { padding: space.xl, alignItems: 'center' },
-  controls: { paddingTop: space.md, gap: space.lg },
+  controlsScroll: { flex: 1 },
+  controls: { paddingTop: space.md, paddingBottom: space.lg, gap: space.lg },
 
   expand: {
     position: 'absolute',
