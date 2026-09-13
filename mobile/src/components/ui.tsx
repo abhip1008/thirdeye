@@ -165,6 +165,7 @@ export function Field({
   hint,
   keyboardType,
   autoFocus,
+  autoCapitalize,
 }: {
   label: string;
   value: string;
@@ -173,6 +174,7 @@ export function Field({
   hint?: string;
   keyboardType?: 'default' | 'numeric';
   autoFocus?: boolean;
+  autoCapitalize?: 'none' | 'sentences';
 }) {
   return (
     <View style={s.field}>
@@ -184,6 +186,7 @@ export function Field({
         placeholderTextColor={colors.textMuted}
         keyboardType={keyboardType}
         autoFocus={autoFocus}
+        autoCapitalize={autoCapitalize}
         autoCorrect={false}
         style={[type.body, s.input]}
         accessibilityLabel={label}

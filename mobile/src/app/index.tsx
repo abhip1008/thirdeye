@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Body, Button, Field, Muted, Screen, Title } from '@/components/ui';
 import { log } from '@/lib/log';
 import { useMatch } from '@/stores/matchStore';
-import { parsePairingQr, usePairing } from '@/stores/pairingStore';
+import { isSigningKey, parsePairingQr, usePairing } from '@/stores/pairingStore';
 import { useSettings } from '@/stores/settingsStore';
 import { colors } from '@/theme/colors';
 import { radius, space } from '@/theme/spacing';
@@ -28,6 +28,7 @@ export default function PairScreen() {
   const [mode, setMode] = useState<'scan' | 'manual'>('scan');
   const [host, setHost] = useState('192.168.43.1');
   const [cameraId, setCameraId] = useState('vest-01');
+  const [psk, setPsk] = useState('');
   const [error, setError] = useState<string | null>(null);
   const handled = useRef(false);
 
@@ -64,7 +65,15 @@ export default function PairScreen() {
       setError('Enter the address printed on the vest.');
       return;
     }
-    await pairing.saveManual(host.trim(), cameraId.trim() || 'vest-01');
+    /* The key is optional because a vest with checking turned off does not want
+       one, and because a typo is worse than a blank: an empty field pairs and
+       the vest says plainly that it will not talk, while a wrong key looks
+       exactly like a vest that is switched off. */
+    if (psk.trim() && !isSigningKey(psk)) {
+      setError('The key is 64 letters and numbers. Check it against the vest.');
+      return;
+    }
+    await pairing.saveManual(host.trim(), cameraId.trim() || 'vest-01', psk.trim() || null);
     proceed();
   };
 
@@ -111,6 +120,14 @@ export default function PairScreen() {
             hint="Printed under the QR code on the vest."
           />
           <Field label="Vest name" value={cameraId} onChangeText={setCameraId} placeholder="vest-01" />
+          <Field
+            label="Vest key"
+            value={psk}
+            onChangeText={setPsk}
+            placeholder="Optional"
+            autoCapitalize="none"
+            hint="The long code under the QR code. Without it the vest will not send clips."
+          />
         </View>
       )}
 

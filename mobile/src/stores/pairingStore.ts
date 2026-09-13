@@ -24,7 +24,7 @@ interface PairingStore {
 
   load: () => Promise<void>;
   savePayload: (payload: PairingPayload) => Promise<void>;
-  saveManual: (host: string, cameraId: string) => Promise<void>;
+  saveManual: (host: string, cameraId: string, psk?: string | null) => Promise<void>;
   setUmpireEnd: (end: UmpireEnd) => void;
   forget: () => Promise<void>;
 }
@@ -66,10 +66,18 @@ export const usePairing = create<PairingStore>((set, get) => ({
     log.info('pairing', `paired with ${payload.camera_id}`);
   },
 
-  saveManual: async (host, cameraId) => {
+  saveManual: async (host, cameraId, psk) => {
     await writeSetting(K_HOST, host);
     await writeSetting(K_CAMERA, cameraId);
-    await audit('pairing.stored', null, { host, camera_id: cameraId, method: 'manual' });
+    // Typed in rather than scanned, but it is the same secret and it goes to
+    // the same place. The audit line records that a key was set, never the key.
+    if (psk) await secrets.setRequestPsk(psk);
+    await audit('pairing.stored', null, {
+      host,
+      camera_id: cameraId,
+      method: 'manual',
+      keyed: !!psk,
+    });
     set({ host, cameraId, paired: true });
   },
 
@@ -84,6 +92,17 @@ export const usePairing = create<PairingStore>((set, get) => ({
     set({ paired: false, host: null, cameraId: null, ssid: null });
   },
 }));
+
+/**
+ * Whether a hand-typed string is a plausible signing key.
+ *
+ * 32 bytes as hex, in either case. Checking here rather than at the first
+ * request means a mistyped key is a message on the pairing screen instead of a
+ * vest that appears to be offline.
+ */
+export function isSigningKey(raw: string): boolean {
+  return /^[0-9a-fA-F]{64}$/.test(raw.trim());
+}
 
 /**
  * Parses a scanned QR code. Anything that is not a Third Eye pairing payload is
