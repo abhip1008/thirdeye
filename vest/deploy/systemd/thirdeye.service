@@ -8,7 +8,12 @@ Type=simple
 User=thirdeye
 WorkingDirectory=/opt/thirdeye
 EnvironmentFile=/etc/thirdeye.env
-ExecStart=/opt/thirdeye/.venv/bin/uvicorn thirdeye.main:app --host 127.0.0.1 --port 8000
+# 0.0.0.0, not 127.0.0.1. The phone is on the other side of the vest's own
+# access point, so a service bound to loopback is a vest that answers nothing
+# and looks, from the phone, exactly like a vest that is switched off. Nothing
+# else routes to this network: the AP has no path to the internet, and every
+# request that reveals anything is signed.
+ExecStart=/opt/thirdeye/.venv/bin/uvicorn thirdeye.main:app --host 0.0.0.0 --port 8000
 
 # It has to come back. This runs unattended, in the rain, on a battery, and the
 # difference between a restart and a lost innings is this line.
