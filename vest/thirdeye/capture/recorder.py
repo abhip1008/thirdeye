@@ -245,11 +245,19 @@ class Recorder:
                     self.last_error = f"camera: {camera_error}"
                 if self._stalled:
                     # The watchdog killed it, so what ffmpeg said on its way out
-                    # is what a process says when it is killed. Keep the reason
-                    # it was killed instead - anything else reports the
-                    # consequence and sends the next person after the wrong
-                    # process, which is how this took an evening to find.
-                    self.last_error = stall_reason
+                    # is what a process says when it is killed - the consequence,
+                    # not the cause. Keep the reason it was killed instead.
+                    #
+                    # But keep the camera's own words alongside it, because a
+                    # recorder that stalls while producing nothing is usually a
+                    # camera that will not start, and that is the sentence
+                    # somebody actually needs. Reporting only "the buffer
+                    # stopped advancing" answers "what happened" while hiding
+                    # "why", which is the same mistake in the other direction.
+                    self.last_error = "; ".join(
+                        part for part in (stall_reason, f"camera: {camera_error}"
+                                          if camera_error else None) if part
+                    )
                     self._stalled = False
                 log.error("recorder stopped (%s), restarting", self.last_error)
             except asyncio.CancelledError:
