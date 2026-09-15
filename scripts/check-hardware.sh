@@ -25,13 +25,27 @@ echo "1. is there a hardware video encoder?"
 # encoder on the chip. A Raspberry Pi 5 has none - the encoder was removed - so
 # every frame is compressed on the CPU, for three hours, while the same CPU also
 # serves files over Wi-Fi.
-if command -v ffmpeg >/dev/null 2>&1; then
-  encoders=$(ffmpeg -hide_banner -encoders 2>/dev/null | grep -iE "v4l2m2m|_rkmpp|_vaapi|_nvenc" | awk '{print $2}' | tr '\n' ' ')
-  if [ -n "$encoders" ]; then ok "ffmpeg offers: $encoders"; else no "ffmpeg has only software encoders"; fi
+# ffmpeg listing an encoder means it was compiled in, NOT that the silicon is
+# here. A Raspberry Pi build happily advertises nvenc and vaapi, which need an
+# NVIDIA or an Intel GPU. So ask the kernel what exists, and only then check
+# whether ffmpeg can drive it.
+present=""
+[ -e /dev/video11 ]    && present="$present v4l2m2m(/dev/video11)"
+ls /dev/dri/renderD* >/dev/null 2>&1 && present="$present vaapi(/dev/dri)"
+[ -e /dev/rga ] || [ -e /dev/mpp_service ] && present="$present rkmpp(Rockchip)"
+
+if [ -n "$present" ]; then
+  ok "hardware encoder present:$present"
+  if command -v ffmpeg >/dev/null 2>&1; then
+    usable=$(ffmpeg -hide_banner -encoders 2>/dev/null | grep -iE "h264_(v4l2m2m|vaapi|rkmpp)" | awk '{print $2}' | tr '\n' ' ')
+    [ -n "$usable" ] && ok "ffmpeg can drive: $usable" || warn "ffmpeg cannot drive it; set THIRDEYE_ENCODER by hand"
+  fi
 else
-  warn "ffmpeg is not installed"
+  no "no hardware video encoder on this board - every frame is compressed by the CPU"
+  # Said plainly because the encoder list is not evidence and reads like it is.
+  command -v ffmpeg >/dev/null 2>&1 && \
+    warn "ffmpeg lists nvenc/vaapi encoders, but that is what it was built with, not what is here"
 fi
-[ -e /dev/video11 ] && ok "/dev/video11 present (Pi hardware H.264 encoder)" || no "no /dev/video11 (no Pi hardware encoder)"
 
 echo
 echo "2. can the CPU keep up if it has to encode in software?"
@@ -53,6 +67,10 @@ if command -v ffmpeg >/dev/null 2>&1; then
     }'
   fi
 fi
+
+echo "     (On the ribbon-camera path ffmpeg does not encode at all - rpicam-vid"
+echo "      compresses and ffmpeg only copies - so treat this as headroom, and"
+echo "      watch CPU once it is actually running.)"
 
 echo
 echo "3. which camera is attached?"
