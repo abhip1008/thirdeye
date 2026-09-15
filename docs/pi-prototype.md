@@ -179,7 +179,30 @@ now reaching a sensor that will not answer. The usual cause is ribbon
 orientation or seating, and reseating both ends with the Pi powered off is the
 right first move. It was not the cause here.
 
-**The real cause was a failing microSD card.** Core binaries appeared to vanish
+**The sensor stopped answering on I2C, mid-session (2026-09-15).** The camera
+recorded for 31 minutes and then failed, first as `Failed to queue buffer for
+CFE Image` - the sensor detected but streaming failing - and after a reboot as
+`no cameras available`. `dmesg` named it exactly:
+
+```text
+ov5647 11-0036: ov5647_read: i2c read error, reg: 300a = -121
+ov5647 11-0036: probe with driver ov5647 failed with error -121
+```
+
+-121 is EREMOTEIO. The kernel found the CSI hardware, loaded the driver, and got
+no reply from the sensor's chip-ID register. Everything else was clean:
+`throttled=0x0` so no under-voltage, no mmc or ext4 errors so the card was fine,
+and `dtoverlay=ov5647` still in place. Reseating the ribbon at both ends is the
+first move; a 15-to-22-pin adapter cable has two connectors and is the cheapest
+part to replace.
+
+Worth knowing in advance, because the failure does not look like a connector
+problem at first. It looks like a memory problem in the camera stack, then it
+looks like a missing camera, and only `dmesg` says the word I2C. The lesson from
+the SD card below generalises: when the peripheral fails in more than one way,
+suspect the thing underneath all of them.
+
+**An earlier failure was a failing microSD card.** Core binaries appeared to vanish
 one by one, `sudo`, `grep`, `dmesg`, `which`, and eventually `/bin/ls /` itself
 returned `Input/output error`. A partially failing card still boots, because
 the boot files stay readable and loaded programs keep running from RAM. Likely
