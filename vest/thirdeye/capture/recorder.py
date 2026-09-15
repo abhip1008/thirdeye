@@ -23,6 +23,15 @@ from .source import Source
 
 log = logging.getLogger(__name__)
 
+STALL_SECONDS = 10.0
+"""How long the buffer may stop advancing before the recorder is restarted.
+
+Segments are a second long, so ten seconds of nothing is not a slow disk, it is
+a pipeline that has stopped. Observed on a Pi: rpicam-vid encoding at a third of
+a core, ffmpeg alive and holding its output file, and not one byte written for
+twelve minutes - with health reporting `recording: true` the whole time, because
+the only question it asked was whether the process existed."""
+
 
 class Recorder:
     """Runs the segmenter and keeps the buffer trimmed."""
@@ -35,12 +44,14 @@ class Recorder:
         video_bitrate: str = "5M",
         encoder: str | None = None,
         ffmpeg: str = "ffmpeg",
+        stall_seconds: float = STALL_SECONDS,
     ) -> None:
         self.source = source
         self.buffer = buffer
         self.video_bitrate = video_bitrate
         self.encoder = encoder
         self.ffmpeg = ffmpeg
+        self.stall_seconds = stall_seconds
 
         self._process: asyncio.subprocess.Process | None = None
         self._producer: asyncio.subprocess.Process | None = None
@@ -50,6 +61,7 @@ class Recorder:
         self._started_at: float | None = None
         self.restarts = 0
         self.last_error: str | None = None
+        self._stalled = False
 
     # ---------- lifecycle ----------
 
@@ -60,6 +72,7 @@ class Recorder:
         self._tasks = [
             asyncio.create_task(self._supervise(), name="recorder"),
             asyncio.create_task(self._janitor(), name="buffer-janitor"),
+            asyncio.create_task(self._watchdog(), name="recorder-watchdog"),
         ]
         log.info("recorder starting from %s:%s", self.source.kind, self.source.target)
 
@@ -74,7 +87,29 @@ class Recorder:
 
     @property
     def running(self) -> bool:
-        return self._process is not None and self._process.returncode is None
+        """Recording, meaning footage is arriving - not merely a live process.
+
+        These came apart on the first vest to run outdoors. Both processes were
+        alive and one of them was busy; nothing had been written for twelve
+        minutes. A process that exists is not a camera that records, and health
+        answered the easy question rather than the true one.
+        """
+        if self._process is None or self._process.returncode is not None:
+            return False
+        return self.stalled_for(time.time()) <= self.stall_seconds
+
+    def stalled_for(self, now: float) -> float:
+        """Seconds since the buffer last grew. Zero while it is keeping up."""
+        if self._started_at is None:
+            return 0.0
+        newest = max(
+            (s.ended_at for s in self.buffer.segments(include_in_flight=True)),
+            default=0.0,
+        )
+        # Before the first segment lands there is nothing to compare against, so
+        # the clock runs from when the recorder started instead. Otherwise every
+        # start looks like a stall for the first second.
+        return max(0.0, now - max(newest, self._started_at))
 
     @property
     def uptime(self) -> float:
@@ -127,6 +162,7 @@ class Recorder:
         while True:
             start_time = time.time()
             index = self._next_index()
+            stall_reason = None
             try:
                 # Anything still alive from the previous attempt goes first. On
                 # the Pi path this is the difference between a restart that
@@ -190,6 +226,7 @@ class Recorder:
                         os.close(read_fd)
                 self._started_at = start_time
                 stderr = await self._process.stderr.read() if self._process.stderr else b""
+                stall_reason = self.last_error if self._stalled else None
                 code = await self._process.wait()
                 self.last_error = stderr.decode(errors="replace").strip()[-400:] or f"exit {code}"
 
@@ -198,6 +235,14 @@ class Recorder:
                 camera_error = self._producer_error()
                 if camera_error:
                     self.last_error = f"camera: {camera_error}"
+                if self._stalled:
+                    # The watchdog killed it, so what ffmpeg said on its way out
+                    # is what a process says when it is killed. Keep the reason
+                    # it was killed instead - anything else reports the
+                    # consequence and sends the next person after the wrong
+                    # process, which is how this took an evening to find.
+                    self.last_error = stall_reason
+                    self._stalled = False
                 log.error("recorder stopped (%s), restarting", self.last_error)
             except asyncio.CancelledError:
                 raise
@@ -238,12 +283,52 @@ class Recorder:
         segments = self.buffer.segments()
         return segments[-1].index + 1 if segments else 0
 
+    async def _watchdog(self) -> None:
+        """Restart a recorder that has stopped recording without stopping.
+
+        The supervisor below watches for the process dying, which is the failure
+        that announces itself. This watches for the one that does not: both
+        processes alive, the pipe stalled, and nothing reaching the disk. Killing
+        it is what makes the supervisor rebuild the whole pipeline, camera
+        included.
+        """
+        while True:
+            await asyncio.sleep(max(1.0, self.buffer.segment_seconds))
+            try:
+                if self._process is None or self._process.returncode is not None:
+                    continue
+                stalled = self.stalled_for(time.time())
+                if stalled <= self.stall_seconds:
+                    continue
+                self.last_error = f"the buffer stopped advancing {stalled:.0f}s ago"
+                self._stalled = True
+                log.error("recorder stalled: %s; restarting it", self.last_error)
+                await self._kill()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - the watchdog must outlive its own bugs
+                log.exception("watchdog pass failed")
+
     async def _janitor(self) -> None:
         while True:
             try:
+                held = len(self.buffer.segments(include_in_flight=True))
                 removed = self.buffer.prune(time.time())
                 if removed:
                     log.debug("pruned %d segment(s)", len(removed))
+                # A pass that takes nearly everything is not ordinary trimming.
+                # The clock moving is what does this: a vest has no real-time
+                # clock, so it boots believing it is yesterday and NTP corrects
+                # it later - and every segment written before that correction is
+                # instantly older than the horizon. The buffer is gone either
+                # way; saying so is the difference between a known event and a
+                # mystery refusal ten minutes afterwards.
+                if len(removed) > 10 and len(removed) >= held * 0.9:
+                    log.warning(
+                        "the janitor removed %d of %d segments in one pass - "
+                        "the buffer is now effectively empty. If the clock just "
+                        "changed, that is why.", len(removed), held,
+                    )
             except Exception:  # noqa: BLE001
                 log.exception("janitor pass failed")
             await asyncio.sleep(max(1.0, self.buffer.segment_seconds))

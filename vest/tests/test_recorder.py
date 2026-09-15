@@ -8,6 +8,7 @@ wrong.
 from __future__ import annotations
 
 import asyncio
+import time
 
 from thirdeye.capture.buffer import RollingBuffer
 from thirdeye.capture.recorder import Recorder
@@ -204,5 +205,65 @@ async def _the_camera_pipeline_actually_produces_segments(tmp_path) -> None:
         # Restarts here would mean the pipeline fell over and was rebuilt, which
         # is exactly what a broken pipe looks like from the outside.
         assert recorder.restarts == 0, recorder.last_error
+    finally:
+        await recorder.stop()
+
+
+class StalledCameraSource(FakeCameraSource):
+    """Produces a few seconds of video and then simply stops, without exiting.
+
+    Which is what a Pi did outdoors: rpicam-vid encoding at a third of a core,
+    ffmpeg holding its output file open, and nothing written for twelve minutes.
+    """
+
+    def producer_command(self, *, segment_seconds: float = 1.0) -> list[str]:
+        return [
+            "sh", "-c",
+            # Two seconds of pictures, then hold the pipe open forever. Nothing
+            # exits, so every liveness check that asks "is the process there"
+            # answers yes.
+            "ffmpeg -hide_banner -loglevel error -f lavfi "
+            "-i testsrc=size=320x240:rate=30:duration=2 -c:v libx264 "
+            "-preset ultrafast -g 30 -f h264 - ; sleep 600",
+        ]
+
+
+def test_a_recorder_that_stops_recording_without_stopping_is_restarted(tmp_path) -> None:
+    """The failure this whole class is supervised against, in its quiet form.
+
+    Health used to ask whether the ffmpeg process existed. It did. Both
+    processes were alive, one of them was busy, and no footage had reached the
+    disk for twelve minutes - so the vest reported itself recording, the buffer
+    quietly emptied behind it, and the first honest sign of trouble was a
+    delivery refused for footage the vest should have had.
+    """
+    asyncio.run(_a_recorder_that_stops_recording_without_stopping_is_restarted(tmp_path))
+
+
+async def _a_recorder_that_stops_recording_without_stopping_is_restarted(tmp_path) -> None:
+    buffer = RollingBuffer(directory=tmp_path / "buffer", segment_seconds=1.0, horizon_seconds=60)
+    recorder = Recorder(
+        source=StalledCameraSource(),  # type: ignore[arg-type]
+        buffer=buffer,
+        stall_seconds=3.0,
+    )
+
+    await recorder.start()
+    try:
+        await _until(lambda: len(list((tmp_path / "buffer").glob("seg_*.mp4"))) >= 2, timeout=25)
+
+        # It is producing, so it is recording.
+        assert recorder.running
+
+        # Now it goes quiet without dying. A process check still passes.
+        await _until(lambda: recorder.stalled_for(time.time()) > 3.0, timeout=20)
+        assert recorder._process is not None and recorder._process.returncode is None, (
+            "the point of this test is that the process is still alive"
+        )
+        assert not recorder.running, "a stalled pipeline must not report itself as recording"
+
+        # And the watchdog rebuilds it rather than leaving it sitting there.
+        await _until(lambda: recorder.restarts >= 1, timeout=20)
+        assert "stopped advancing" in (recorder.last_error or "")
     finally:
         await recorder.stop()
