@@ -45,10 +45,11 @@ Not yet run on a physical device. The unverified list is in `README.md` under
 ## Vest
 
 Service is real: continuous buffer, cut on marker, HTTP serve with resume,
-signed requests, pairing code. Runs on a laptop with `THIRDEYE_SOURCE=file:`
-or `pattern:`. 61 tests plus a 30-check end-to-end run.
+signed requests, pairing code. 67 tests plus a 30-check end-to-end run.
 
-The camera is the only remaining fake.
+**The camera is no longer a fake.** It runs on a Raspberry Pi 5 with an OV5647
+and records continuously - see Hardware. What has still never run against real
+footage is everything after the buffer: the cut, the hash, the transfer.
 
 Ready for the Pi as of 2026-09-14: capture geometry is configuration
 (`THIRDEYE_WIDTH`/`HEIGHT`/`FRAMERATE`), a recorder restart no longer leaves
@@ -67,20 +68,35 @@ alone; they have never been connected to each other.
 Production target is a Radxa ROCK 5C with an AR0234 global-shutter camera.
 Nothing has been bought or brought up against that target yet.
 
-Separate prototyping is happening on a Raspberry Pi 5 with an Arducam OV5647.
-The camera works and the full record is in `docs/pi-prototype.md`: the
-`config.txt` settings, the confirmed commands, the sensor modes, the microSD
-failure that cost a day, and the standalone WebSocket server that should be
-discarded rather than merged.
+Prototyping is on a Raspberry Pi 5 with an Arducam OV5647. Background, and the
+failures already paid for, are in `docs/pi-prototype.md`.
 
-Nothing in this repository has run on the Pi yet. The software side of that is
-now done and tested - see the Vest section - so what is left is the bring-up
-itself, in `vest/README.md` under "Putting it on a Raspberry Pi".
+**2026-09-14: the vest service runs on the Pi and records from the camera.**
+Installed at `/opt/thirdeye` via `scripts/setup-pi.sh`, service enabled, capture
+at **1296x972 at 30** - the full-sensor mode, chosen over 1920x1080 because
+1080p on this sensor is a centre crop and field of view matters more than pixels
+for a chest camera. Health reports `recording: true`, no restarts, no errors,
+and the rolling buffer holds its full 300 seconds with the janitor trimming to
+the horizon.
 
-**Next action:** `sudo ./scripts/setup-pi.sh` on the Pi, set the capture mode to
-one the OV5647 actually has (1080p30), start the service, and pair a phone over
-the home Wi-Fi. The access point comes after a clip has reached a phone, so that
-only one thing is new at a time.
+Five bugs were found by running it, all in the camera path, all invisible to a
+test suite that stubbed process spawning. They are listed in `docs/pi-prototype.md`
+and fixed. The load-bearing one: B-frames meant the stream could never be cut,
+so the vest recorded one file that grew forever while reporting itself healthy.
+`--low-latency 1`, measured 1 segment against 8.
+
+Measured on the board: no hardware encoder (the Pi 5 has none), software
+encoding at 1.43x realtime, `rpicam-vid` at about 50% of one core at this mode,
+1.2 Mbps. 5 GHz AP was reported unavailable until the WLAN country was set.
+`/data` is on the SD card - move it to a USB SSD before any long soak, since a
+card has already been lost to this.
+
+**Next action:** pair a phone with it over the home Wi-Fi and get the first
+clip across - vest at 192.168.4.82, key from `python -m thirdeye.pairing`, mock
+vest off in the app's settings. Nothing in the marker-to-clip path has run
+against real footage yet: cutting, hashing and transfer are all still only
+proven against a file standing in for a camera. The access point comes after
+that, so that only one thing is new at a time.
 
 ---
 
