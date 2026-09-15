@@ -90,9 +90,20 @@ fi
 
 say "7. service"
 # The unit ships with paths under /opt/thirdeye. A clone lives wherever it was
-# cloned, so the copy installed here points at this one.
-sed "s|/opt/thirdeye/vest|$REPO/vest|g; s|WorkingDirectory=/opt/thirdeye|WorkingDirectory=$REPO/vest|" \
+# cloned, so rewrite the two lines that name a path - by what they are, not by
+# what they currently say. The first version of this matched the literal string
+# /opt/thirdeye/vest, which does not appear in ExecStart, so a unit installed
+# from a clone at /opt/thirdeye kept a path to a virtual environment one
+# directory above the real one and failed with 203/EXEC.
+sed -e "s|^WorkingDirectory=.*|WorkingDirectory=$REPO/vest|" \
+    -e "s|^ExecStart=[^ ]*|ExecStart=$REPO/vest/.venv/bin/uvicorn|" \
   "$REPO/vest/deploy/systemd/thirdeye.service" > /etc/systemd/system/thirdeye.service
+
+# Prove it before handing over. A unit whose ExecStart does not exist fails at
+# boot with a message about the interpreter, which is not where the mistake is.
+exec_path=$(awk -F'=' '/^ExecStart=/ {print $2}' /etc/systemd/system/thirdeye.service | awk '{print $1}')
+[ -x "$exec_path" ] || { echo "  the unit points at $exec_path, which is not there"; exit 1; }
+note "runs $exec_path"
 systemctl daemon-reload
 systemctl enable thirdeye >/dev/null
 note "enabled; it will start on boot"
