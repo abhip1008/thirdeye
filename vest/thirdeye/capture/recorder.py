@@ -125,7 +125,17 @@ class Recorder:
             start_time = time.time()
             index = self._next_index()
             try:
-                producer = self.source.producer_command()
+                # Anything still alive from the previous attempt goes first. On
+                # the Pi path this is the difference between a restart that
+                # works and a vest that never records again: rpicam-vid owns the
+                # sensor exclusively, so a leftover one makes every subsequent
+                # start fail with the camera in use - and the supervisor would
+                # sit there restarting into that forever.
+                await self._kill()
+
+                producer = self.source.producer_command(
+                    segment_seconds=self.buffer.segment_seconds
+                )
                 if producer is None:
                     self._process = await asyncio.create_subprocess_exec(
                         *self._command(index, start_time),
@@ -140,7 +150,13 @@ class Recorder:
                     self._producer = await asyncio.create_subprocess_exec(
                         *producer,
                         stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.DEVNULL,
+                        # Kept, not discarded. When the camera is the thing that
+                        # is wrong - a mode the sensor does not have, a ribbon
+                        # half seated, another process holding it - this is the
+                        # only place that says so. ffmpeg downstream sees an
+                        # empty pipe and reports something about an invalid
+                        # stream, which sends you looking in the wrong place.
+                        stderr=asyncio.subprocess.PIPE,
                     )
                     self._process = await asyncio.create_subprocess_exec(
                         *self._command(index, start_time),
@@ -152,6 +168,12 @@ class Recorder:
                 stderr = await self._process.stderr.read() if self._process.stderr else b""
                 code = await self._process.wait()
                 self.last_error = stderr.decode(errors="replace").strip()[-400:] or f"exit {code}"
+
+                # If the camera died first, ffmpeg's complaint is a symptom and
+                # the producer's is the cause. Report the cause.
+                camera_error = await self._producer_error()
+                if camera_error:
+                    self.last_error = f"camera: {camera_error}"
                 log.error("recorder stopped (%s), restarting", self.last_error)
             except asyncio.CancelledError:
                 raise
@@ -162,6 +184,17 @@ class Recorder:
             self.restarts += 1
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 10.0)
+
+    async def _producer_error(self) -> str | None:
+        """What rpicam-vid said on its way out, if it has gone."""
+        producer = self._producer
+        if producer is None or producer.stderr is None:
+            return None
+        try:
+            text = await asyncio.wait_for(producer.stderr.read(), timeout=1.0)
+        except (asyncio.TimeoutError, ValueError):
+            return None
+        return text.decode(errors="replace").strip()[-300:] or None
 
     def _next_index(self) -> int:
         """Continue numbering across a restart, so the index stays monotonic."""
@@ -187,4 +220,10 @@ class Recorder:
                 await asyncio.wait_for(process.wait(), timeout=3)
             if process.returncode is None:
                 process.kill()
+                # kill() only sends the signal. Without waiting, the next start
+                # can still race a process that has not finished letting go of
+                # the sensor.
+                with contextlib.suppress(asyncio.TimeoutError):
+                    await asyncio.wait_for(process.wait(), timeout=3)
+        self._process = None
         self._producer = None
