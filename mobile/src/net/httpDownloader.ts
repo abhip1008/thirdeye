@@ -4,7 +4,7 @@ import { File } from 'expo-file-system';
 import { log } from '@/lib/log';
 import { clipFile, ensureMatchDir, partFile } from '@/privacy/storage';
 
-import { signedHeaders } from './signing';
+import { signedFetch } from './signedFetch';
 
 import type { DownloadRequest, DownloadResult, Downloader } from './transport';
 
@@ -48,7 +48,7 @@ export class HttpDownloader implements Downloader {
 
     const part = partFile(req.matchId, req.cameraId, req.seq);
     const final = clipFile(req.matchId, req.cameraId, req.seq);
-    const url = `http://${this.host}/clips/${req.seq}.mp4`;
+    const path = `/clips/${req.seq}.mp4`;
 
     const already = part.exists ? (part.size ?? 0) : 0;
     if (already >= req.bytes) {
@@ -56,11 +56,8 @@ export class HttpDownloader implements Downloader {
       return this.verifyAndCommit(req, part, final);
     }
 
-    const response = await fetch(url, {
-      headers: {
-        ...(await signedHeaders('GET', `/clips/${req.seq}.mp4`)),
-        ...(already > 0 ? { Range: `bytes=${already}-` } : {}),
-      },
+    const response = await signedFetch(this.host, path, {
+      headers: already > 0 ? { Range: `bytes=${already}-` } : {},
     });
 
     if (!response.ok && response.status !== 206) {

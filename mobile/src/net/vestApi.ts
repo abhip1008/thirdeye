@@ -1,6 +1,7 @@
 import { log } from '@/lib/log';
 
-import { signedHeaders } from './signing';
+import { signedFetch } from './signedFetch';
+import { observeHealth } from './vestClock';
 
 /**
  * The few things the phone asks of the vest over plain HTTP rather than the
@@ -16,6 +17,8 @@ const timeout = (ms: number) => {
 
 export interface VestHealth {
   ok: boolean;
+  /** The vest's own clock. Unsigned, because this is the route that is. */
+  vest_time?: number;
   camera_id: string;
   firmware: string;
   protocol: number;
@@ -31,7 +34,11 @@ export async function vestHealth(host: string, ms = 4000): Promise<VestHealth | 
     // nothing a stranger on the network could not learn by looking at the vest.
     const response = await fetch(`http://${host}/api/health`, { signal: t.signal });
     if (!response.ok) return null;
-    return (await response.json()) as VestHealth;
+    const body = (await response.json()) as VestHealth;
+    // The cheapest place to learn the vest's clock, and the only one that works
+    // before anything has been signed.
+    if (typeof body.vest_time === 'number') observeHealth(body.vest_time);
+    return body;
   } catch {
     return null;
   } finally {
@@ -50,12 +57,9 @@ export async function vestHealth(host: string, ms = 4000): Promise<VestHealth | 
 export async function startVestSession(host: string, venue: string): Promise<string | null> {
   const t = timeout(6000);
   try {
-    const response = await fetch(`http://${host}/api/session/start`, {
+    const response = await signedFetch(host, '/api/session/start', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(await signedHeaders('POST', '/api/session/start')),
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ venue }),
       signal: t.signal,
     });
