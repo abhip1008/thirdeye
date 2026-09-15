@@ -9,6 +9,7 @@ worse than no clip because it looks fine.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -127,3 +128,40 @@ def test_files_that_are_not_segments_are_ignored(buffer) -> None:
     (buffer.directory / "notes.txt").write_text("hello")
     (buffer.directory / "seg_bad.mp4").write_bytes(b"x")
     assert len(buffer.segments(include_in_flight=True)) == 3
+
+
+def _segment(directory: Path, index: int, run: float, closed_at: float) -> Path:
+    path = directory / segment_name(index, run)
+    path.write_bytes(b"x")
+    os.utime(path, (closed_at, closed_at))
+    return path
+
+
+def test_a_dead_run_s_last_segment_is_not_in_flight_forever(tmp_path: Path) -> None:
+    """Found on a Pi: 68 seconds of uptime, and a buffer claiming forty minutes.
+
+    The last file of every run was treated as still being written. For the
+    current run that is right. For a run that died half an hour ago it means the
+    janitor never removes it - it skips in-flight segments - while the depth
+    report does count it. So one orphan from a crashed recorder both leaks disk
+    forever and makes the vest lie about how far back it can reach.
+    """
+    directory = tmp_path / "buffer"
+    directory.mkdir()
+    now = time.time()
+
+    # A run that died long ago, leaving one file behind.
+    orphan = _segment(directory, 0, run=now - 2400, closed_at=now - 2390)
+    # The run that is going now.
+    _segment(directory, 0, run=now - 3, closed_at=now - 2)
+    live = _segment(directory, 1, run=now - 3, closed_at=now - 1)
+
+    buffer = RollingBuffer(directory=directory, segment_seconds=1.0, horizon_seconds=300)
+
+    usable = {s.path for s in buffer.segments()}
+    assert orphan in usable, "the dead run's file must be visible to the janitor"
+    assert live not in usable, "the live run's newest file is still being written"
+
+    # And therefore it gets cleaned up, and stops inflating the depth.
+    assert orphan in buffer.prune(now)
+    assert buffer.held_seconds(now) < 10

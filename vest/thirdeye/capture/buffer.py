@@ -97,11 +97,20 @@ class RollingBuffer:
                 continue  # vanished between listing and stat
             runs.setdefault(parsed[1], []).append((parsed[0], path, closed_at))
 
+        # Only the newest run has a segment still being written. The last file
+        # of an older run was closed when that recorder died, and treating it as
+        # in-flight forever is how a dead run's final segment became immortal:
+        # the janitor skips in-flight segments, so it was never pruned, while
+        # the depth report counts them, so it was. One orphaned file from a
+        # crashed run made a vest with 68 seconds of uptime claim to be holding
+        # forty minutes of footage.
+        newest_run = max(runs) if runs else None
+
         segments: list[Segment] = []
-        for members in runs.values():
+        for run_started_at, members in runs.items():
             members.sort(key=lambda m: m[0])
             for position, (index, path, closed_at) in enumerate(members):
-                in_flight = position == len(members) - 1
+                in_flight = position == len(members) - 1 and run_started_at == newest_run
                 if in_flight and not include_in_flight:
                     continue
                 # A segment ends when its file was last written, and begins when
