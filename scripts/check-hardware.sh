@@ -25,47 +25,39 @@ echo "1. is there a hardware video encoder?"
 # encoder on the chip. A Raspberry Pi 5 has none - the encoder was removed - so
 # every frame is compressed on the CPU, for three hours, while the same CPU also
 # serves files over Wi-Fi.
-# ffmpeg listing an encoder means it was compiled in, NOT that the silicon is
-# here. A Raspberry Pi build happily advertises nvenc and vaapi, which need an
-# NVIDIA or an Intel GPU. So ask the kernel what exists, and only then check
-# whether ffmpeg can drive it.
-present=""
-[ -e /dev/video11 ]    && present="$present v4l2m2m(/dev/video11)"
-ls /dev/dri/renderD* >/dev/null 2>&1 && present="$present vaapi(/dev/dri)"
-[ -e /dev/rga ] || [ -e /dev/mpp_service ] && present="$present rkmpp(Rockchip)"
-
-if [ -n "$present" ]; then
-  ok "hardware encoder present:$present"
-  if command -v ffmpeg >/dev/null 2>&1; then
-    usable=$(ffmpeg -hide_banner -encoders 2>/dev/null | grep -iE "h264_(v4l2m2m|vaapi|rkmpp)" | awk '{print $2}' | tr '\n' ' ')
-    [ -n "$usable" ] && ok "ffmpeg can drive: $usable" || warn "ffmpeg cannot drive it; set THIRDEYE_ENCODER by hand"
-  fi
+# Neither ffmpeg's encoder list nor the presence of a device node is evidence.
+# ffmpeg lists what it was built with - a Pi build advertises nvenc, which needs
+# an NVIDIA GPU. /dev/dri exists on a Pi because of the 3D GPU, which does not
+# encode video. Both of those reported a hardware encoder on a board that has
+# none, one after the other.
+#
+# So try it. An encoder that cannot compress one second of test pattern is not
+# an encoder you are going to record three hours of cricket with.
+works=""
+if command -v ffmpeg >/dev/null 2>&1; then
+  for enc in h264_v4l2m2m h264_rkmpp h264_vaapi; do
+    ffmpeg -hide_banner -encoders 2>/dev/null | grep -q " $enc " || continue
+    if [ "$enc" = "h264_vaapi" ]; then
+      [ -e /dev/dri/renderD128 ] || continue
+      ffmpeg -hide_banner -loglevel error -vaapi_device /dev/dri/renderD128 \
+        -f lavfi -i testsrc=size=640x480:rate=30:duration=1 \
+        -vf 'format=nv12,hwupload' -c:v "$enc" -f null - >/dev/null 2>&1 || continue
+    else
+      ffmpeg -hide_banner -loglevel error \
+        -f lavfi -i testsrc=size=640x480:rate=30:duration=1 \
+        -c:v "$enc" -f null - >/dev/null 2>&1 || continue
+    fi
+    works="$works $enc"
+  done
 else
-  no "no hardware video encoder on this board - every frame is compressed by the CPU"
-  # Said plainly because the encoder list is not evidence and reads like it is.
-  command -v ffmpeg >/dev/null 2>&1 && \
-    warn "ffmpeg lists nvenc/vaapi encoders, but that is what it was built with, not what is here"
+  warn "ffmpeg is not installed"
 fi
 
-echo
-echo "2. can the CPU keep up if it has to encode in software?"
-if command -v ffmpeg >/dev/null 2>&1; then
-  echo -n "     encoding 10s of 1080p30 in software... "
-  # ffmpeg's own "speed=" is the number that matters: 1.0x means it compressed
-  # one second of video in one second, which is exactly what recording
-  # continuously demands. Anything under 1.0x falls behind and never catches up.
-  speed=$(ffmpeg -hide_banner -f lavfi -i testsrc=size=1920x1080:rate=30:duration=10 \
-          -c:v libx264 -preset veryfast -b:v 5M -f null - 2>&1 \
-          | tr '\r' '\n' | grep -oE "speed= *[0-9.]+x" | tail -1 | grep -oE "[0-9.]+")
-  echo "${speed:-?}x realtime"
-  if [ -n "${speed:-}" ]; then
-    awk -v s="$speed" 'BEGIN {
-      if (s >= 1.8) print "  \033[32m yes\033[0m comfortable headroom for heat and Wi-Fi load";
-      else if (s >= 1.2) print "  \033[33m   ?\033[0m only just keeping up - expect trouble once it is warm";
-      else if (s >= 1.0) print "  \033[31m  no\033[0m no margin at all; it will fall behind under load";
-      else print "  \033[31m  no\033[0m slower than realtime - it cannot record continuously at this size";
-    }'
-  fi
+if [ -n "$works" ]; then
+  ok "hardware encoding works:$works"
+  echo "       set THIRDEYE_ENCODER to one of those"
+else
+  no "no working hardware encoder - every frame is compressed by the CPU"
 fi
 
 echo "     (On the ribbon-camera path ffmpeg does not encode at all - rpicam-vid"
