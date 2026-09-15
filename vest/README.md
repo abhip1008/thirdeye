@@ -117,6 +117,24 @@ Two things that catch people:
 > **While a hotspot is up the Pi has no route to the internet**, so `apt` fails
 > with a DNS error. Bring it down, install, bring it back up.
 
+### Proving it works, without a phone
+
+```bash
+sudo -u thirdeye /opt/thirdeye/vest/.venv/bin/python \
+  /opt/thirdeye/vest/scripts/check_clip.py
+```
+
+This is the app, in a script, against the vest that is already running. It signs
+its requests with the real key, starts a match, marks a delivery, waits for the
+announcement, downloads the clip, checks the length and the SHA-256 against what
+was announced, resumes a half-finished download, and probes that the result is
+real video at the frame rate the review screen will step through it with.
+
+Run it before pairing a phone for the first time. When a first clip fails to
+appear on a phone it is not obvious whether the vest could not cut it or the app
+could not fetch it, and finding out which, in a car park, with a net session
+waiting, is how an afternoon goes. Everything this touches is the vest's side.
+
 ### The clock
 
 A Pi has no real-time clock unless you fit the battery, and at a ground it has
