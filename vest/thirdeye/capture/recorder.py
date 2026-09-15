@@ -224,10 +224,18 @@ class Recorder:
                         )
                     finally:
                         os.close(read_fd)
+
                 self._started_at = start_time
-                stderr = await self._process.stderr.read() if self._process.stderr else b""
+
+                # Held locally from here down. The watchdog kills through
+                # `_kill`, which sets `self._process` to None, and reaching
+                # through the attribute afterwards raises inside the supervisor
+                # - which restarts anyway, but records "'NoneType' object has no
+                # attribute 'wait'" as the reason the camera stopped.
+                process = self._process
+                stderr = await process.stderr.read() if process.stderr else b""
                 stall_reason = self.last_error if self._stalled else None
-                code = await self._process.wait()
+                code = await process.wait()
                 self.last_error = stderr.decode(errors="replace").strip()[-400:] or f"exit {code}"
 
                 # If the camera died first, ffmpeg's complaint is a symptom and
