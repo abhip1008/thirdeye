@@ -69,12 +69,14 @@ echo "  $SSID on ${BAND/a/5 GHz} channel $CHANNEL, vest at $ADDRESS"
 
 say "3. tell the pairing code where the vest now is"
 if grep -q '^THIRDEYE_ADVERTISE_HOST=' /etc/thirdeye.env 2>/dev/null; then
-  sed -i "s|^THIRDEYE_ADVERTISE_HOST=.*|THIRDEYE_ADVERTISE_HOST=$ADDRESS|" /etc/thirdeye.env
-  echo "  /etc/thirdeye.env now advertises $ADDRESS"
+  # With the port. The service listens on 8000; an address without a port means
+  # 80, and the phone then fails to connect rather than being refused.
+  sed -i "s|^THIRDEYE_ADVERTISE_HOST=.*|THIRDEYE_ADVERTISE_HOST=$ADDRESS:8000|" /etc/thirdeye.env
+  echo "  /etc/thirdeye.env now advertises $ADDRESS:8000"
   systemctl restart thirdeye 2>/dev/null || true
 else
   echo "  WARNING: /etc/thirdeye.env has no THIRDEYE_ADVERTISE_HOST line."
-  echo "  Add THIRDEYE_ADVERTISE_HOST=$ADDRESS or the pairing code will point"
+  echo "  Add THIRDEYE_ADVERTISE_HOST=$ADDRESS:8000 or the pairing code will point"
   echo "  the phone at the wrong address."
 fi
 
@@ -85,7 +87,7 @@ cat <<TEXT
 
   Join "$SSID" from the phone, then pair it with:
 
-      address   $ADDRESS
+      address   $ADDRESS:8000
       key       sudo -u thirdeye <repo>/vest/.venv/bin/python -m thirdeye.pairing
 
   To get back on your home Wi-Fi later:

@@ -131,14 +131,20 @@ class Settings(BaseSettings):
     differ between boards and between versions of rpicam-apps, so the useful
     ones are found in a net, not here."""
 
-    advertise_host: str = "192.168.43.1"
-    """The address the pairing code tells the phone to use.
+    advertise_host: str = "192.168.43.1:8000"
+    """The address the pairing code tells the phone to dial, **with the port**.
 
     The vest's own access point hands out 192.168.43.1. A Raspberry Pi hotspot
     made with nmcli is 10.42.0.1, and a vest sitting on a home network during
     development is whatever DHCP gave it. Getting this wrong produces a pairing
     code that scans perfectly and points the phone at nothing, so it is a knob
-    rather than a constant."""
+    rather than a constant.
+
+    The port is not optional and was missing here. The service listens on 8000;
+    an address without a port means 80, where nothing is. The phone then makes
+    no connection at all - not a refused one - so the vest's log stays empty and
+    the app sits on "connecting" forever, which looks like every other kind of
+    network problem. Found the first time a phone was pointed at a real vest."""
 
 
 

@@ -26,7 +26,7 @@ export default function PairScreen() {
   const acknowledged = useSettings((s) => s.noticeAcknowledged);
   const [permission, requestPermission] = useCameraPermissions();
   const [mode, setMode] = useState<'scan' | 'manual'>('scan');
-  const [host, setHost] = useState('192.168.43.1');
+  const [host, setHost] = useState('192.168.43.1:8000');
   const [cameraId, setCameraId] = useState('vest-01');
   const [psk, setPsk] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -116,8 +116,8 @@ export default function PairScreen() {
             label="Vest address"
             value={host}
             onChangeText={setHost}
-            placeholder="192.168.43.1"
-            hint="Printed under the QR code on the vest."
+            placeholder="192.168.43.1:8000"
+            hint="Printed under the QR code on the vest. Include the port."
           />
           <Field label="Vest name" value={cameraId} onChangeText={setCameraId} placeholder="vest-01" />
           <Field

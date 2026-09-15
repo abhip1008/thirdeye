@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { readSetting, writeSetting } from '@/db/settings';
 import { log } from '@/lib/log';
+import { withPort } from '@/net/address';
 import { resetVestClock } from '@/net/vestClock';
 import { audit } from '@/privacy/audit';
 import { secrets } from '@/privacy/secrets';
@@ -72,6 +73,7 @@ export const usePairing = create<PairingStore>((set, get) => ({
 
   saveManual: async (host, cameraId, psk) => {
     resetVestClock();
+    host = withPort(host);
     await writeSetting(K_HOST, host);
     await writeSetting(K_CAMERA, cameraId);
     // Typed in rather than scanned, but it is the same secret and it goes to
