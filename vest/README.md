@@ -96,14 +96,23 @@ Three values in `/etc/thirdeye.env` have to be right or nothing works:
 Then the access point, once a clip has actually reached a phone:
 
 ```bash
-sudo apt install hostapd dnsmasq
-sudo cp vest/deploy/hostapd.conf /etc/hostapd/hostapd.conf
-sudo cp vest/deploy/dnsmasq.conf /etc/dnsmasq.d/thirdeye.conf
-sudo systemctl enable --now hostapd dnsmasq
+sudo ./scripts/setup-hotspot.sh 'a-passphrase-you-choose'
 ```
 
-Change `THIRDEYE_ADVERTISE_HOST` to the AP's address at the same time, and
-print a new pairing code.
+That uses NetworkManager, which is what Raspberry Pi OS runs, and it updates
+`THIRDEYE_ADVERTISE_HOST` for you. The `hostapd.conf` and `dnsmasq.conf` in
+`deploy/` are for the production image, which does not run NetworkManager -
+running both on a Pi is a fight rather than a configuration.
+
+Two things that catch people:
+
+- **Set the Wi-Fi country first** (`sudo raspi-config` → Localisation →  WLAN
+  Country) or the radio will not transmit on 5 GHz at all. The script refuses to
+  continue without one, because the failure otherwise is a hotspot that silently
+  appears on 2.4 GHz.
+- **The Pi has one radio.** When the hotspot comes up the Pi leaves your home
+  network, and an SSH session over Wi-Fi dies with it. Use Ethernet, or a
+  keyboard and monitor, or reconnect by joining the hotspot.
 
 > **While a hotspot is up the Pi has no route to the internet**, so `apt` fails
 > with a DNS error. Bring it down, install, bring it back up.
