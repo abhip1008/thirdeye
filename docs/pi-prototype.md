@@ -108,6 +108,33 @@ not by running it, and each would have looked like a camera problem on the day.
 - **The systemd unit bound to 127.0.0.1**, which from the phone is
   indistinguishable from a vest that is switched off.
 
+### And three more found by running it on the Pi
+
+All three were in the camera path, which had never executed before. Each looked
+like the one before it - "the vest is up but not recording" - and each had a
+different cause.
+
+- **The producer's stdout was handed to ffmpeg as an asyncio StreamReader**,
+  where a file descriptor is required: `'StreamReader' object has no attribute
+  'fileno'`. Every unit test passed, because they all stub the process spawning.
+  There is now one that runs two real processes through one real pipe.
+- **libav could not choose an output format for `-`.** With no hardware H.264
+  encoder, `--codec h264` goes through libav, which deduces its container from
+  the file extension - and stdout has none. Fixed with `--libav-format h264`.
+  It is also why recording to `test.mp4` by hand worked while this did not.
+- **B-frames meant the stream could never be cut.** The camera recorded happily
+  at 1.2 Mbps into a single file that grew forever; the buffer reported 1.4
+  seconds after a minute. Reordered frames, read as raw H.264 from a pipe with
+  no container timestamps, leave ffmpeg without a clock, and the segment muxer
+  needs a clock as well as a keyframe. Eight seconds of camera through the real
+  pipeline: **1 segment plain, 8 with `--low-latency 1`**. Setting `bf=0`
+  through `--libav-video-codec-opts` did not take - still 1 - which is why that
+  was measured rather than assumed.
+
+Worth knowing for the production board: `--libav-video-codec` defaults to
+`h264_v4l2m2m`, the hardware encoder. On a Pi 5 that does not exist and it falls
+back to libx264 silently, which is where the B-frames came from.
+
 Also, because the Pi has no real-time clock: a signed request refused for clock
 skew now comes back carrying the vest's own clock, and the phone adopts it and
 retries. Without that, a vest that boots believing it is last Tuesday refuses

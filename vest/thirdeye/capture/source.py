@@ -97,6 +97,22 @@ class Source:
             # format for '-'". `h264` here is the raw elementary stream, which
             # is exactly what the ffmpeg downstream is told to expect.
             "--libav-format", "h264",
+            # No B-frames, and no reordering delay. Without this the encoder
+            # produces a stream in decode order rather than display order, and
+            # ffmpeg - reading raw H.264 from a pipe, with no container
+            # timestamps to work from - cannot establish a clock. The segment
+            # muxer needs a clock as well as a keyframe to cut on, so it never
+            # cuts: one file, growing forever, and a buffer that reports 1.4
+            # seconds after a minute of recording.
+            #
+            # Measured on a Pi 5, eight seconds of camera into this exact ffmpeg
+            # command: without it, 1 segment. With it, 8. Setting bf=0 through
+            # --libav-video-codec-opts instead did not take - still 1.
+            #
+            # It is the right setting on its own merits anyway. Encoder latency
+            # sits directly in the path between an umpire tapping and a clip
+            # existing, and frame-stepping through reordered frames is worse.
+            "--low-latency", "1",
             "--intra", str(intra),
             "--nopreview", "--output", "-",
             *self.extra_args,

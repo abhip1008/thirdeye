@@ -106,3 +106,15 @@ def test_extra_camera_arguments_are_passed_through() -> None:
 
 def test_no_extra_arguments_means_no_extra_arguments() -> None:
     assert Source.parse("libcamera:0").producer_command()[-1] == "-"
+
+
+def test_the_camera_is_asked_for_a_stream_that_can_be_cut() -> None:
+    """B-frames are why the first Pi bring-up recorded one endless file.
+
+    Reordered frames, read as raw H.264 from a pipe with no container
+    timestamps, leave ffmpeg without a clock - and the segment muxer needs a
+    clock as well as a keyframe before it will cut. Measured: 1 segment in eight
+    seconds without this flag, 8 with it.
+    """
+    command = Source.parse("libcamera:0").producer_command()
+    assert command[command.index("--low-latency") + 1] == "1"
