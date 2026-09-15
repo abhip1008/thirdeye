@@ -10,7 +10,9 @@
  * control channel, and that without either one the vest says no. Those are
  * three different things and only the first is arithmetic.
  */
+import { signedFetch } from '../signedFetch';
 import { signedHeaders, signedQuery } from '../signing';
+import { correctTo, resetVestClock, vestOffset } from '../vestClock';
 
 jest.mock('expo-secure-store', () => ({
   isAvailableAsync: async () => true,
@@ -55,6 +57,23 @@ describe('against the live vest', () => {
       setTimeout(() => reject(new Error('timed out')), 5000);
     });
     expect(JSON.parse(hello).type).toBe('hello');
+  });
+
+  it('recovers from two clocks that disagree, without anyone touching the vest', async () => {
+    // The field failure this exists for: a vest has no real-time clock and no
+    // internet, so it boots believing it is whenever it was last switched off.
+    // Here the phone is the one that is wrong, which is the same problem from
+    // the other side - what matters is that they disagree by more than the
+    // window, and that one refusal is enough to fix it.
+    resetVestClock();
+    correctTo(Date.now() / 1000 + 9000);
+    expect(vestOffset()).toBeGreaterThan(8000);
+
+    const r = await signedFetch(HOST, '/api/clips');
+
+    expect(r.status).toBe(200);
+    expect(Math.abs(vestOffset())).toBeLessThan(5); // corrected to the vest's own clock
+    resetVestClock();
   });
 
   it('refuses the control channel with no signature', async () => {
