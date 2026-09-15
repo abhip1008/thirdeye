@@ -31,7 +31,7 @@ from .capture.recorder import Recorder
 from .capture.source import Source
 from .config import settings
 from .protocol import PROTOCOL_VERSION
-from .security import Verifier, load_or_create_key
+from .security import Verifier, load_or_create_key, now_stamp
 from .session.state import Session
 from .storage.clip_store import ClipStore
 
@@ -47,7 +47,12 @@ buffer = RollingBuffer(
 store = ClipStore(root=settings.data_root, camera_id=settings.camera_id, ring_size=settings.ring_size)
 session = Session(settings, buffer, store, emit=hub.broadcast)
 recorder = Recorder(
-    source=Source.parse(settings.source),
+    source=Source.parse(
+        settings.source,
+        width=settings.width,
+        height=settings.height,
+        framerate=settings.framerate,
+    ),
     buffer=buffer,
     video_bitrate=settings.video_bitrate,
     encoder=settings.encoder,
@@ -94,7 +99,18 @@ def require_signature(request: Request) -> None:
     )
     if reason is not None:
         log.warning("refused %s %s: %s", request.method, request.url.path, reason)
-        raise HTTPException(status_code=401, detail=reason)
+        # The vest's clock goes back with the refusal. A vest has no real-time
+        # clock and, at a ground, no internet: it boots believing it is whenever
+        # it was last switched off, which can be days ago. The phone's clock is
+        # the accurate one, but signing needs agreement rather than accuracy, so
+        # the phone adopts this and signs in vest time. Telling an unauthorised
+        # caller what time the vest thinks it is costs nothing - health says the
+        # same thing to anybody who asks.
+        raise HTTPException(
+            status_code=401,
+            detail=reason,
+            headers={"X-TE-Time": now_stamp(time.time())},
+        )
 
 
 def health() -> dict[str, Any]:
@@ -165,6 +181,11 @@ def api_health() -> dict[str, Any]:
     return {
         "ok": True,
         "uptime_s": round(time.monotonic() - _started_at, 1),
+        # The vest's clock, on the one route that is not signed. A phone that
+        # has never spoken to this vest signs its first request with this, which
+        # is what lets a vest whose clock is days out still be talked to at all.
+        # It is not a secret: it is the time.
+        "vest_time": time.time(),
         "camera_id": settings.camera_id,
         "firmware": settings.firmware,
         "protocol": PROTOCOL_VERSION,
@@ -232,7 +253,7 @@ def pairing_payload(*, redacted: bool = False) -> dict[str, Any]:
         "v": PROTOCOL_VERSION,
         "ssid": f"thirdeye-{settings.camera_id}",
         "password": "set-in-hostapd.conf",
-        "host": "192.168.43.1",
+        "host": settings.advertise_host,
         "camera_id": settings.camera_id,
         "psk": "<redacted>" if redacted else signing_key,
         "end": "bowlers",

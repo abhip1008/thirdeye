@@ -21,9 +21,14 @@ class Source:
     kind: str
     target: str
 
+    # Defaults only for a Source built directly, in a test. The vest passes
+    # THIRDEYE_WIDTH/HEIGHT/FRAMERATE in from settings, and those are the ones
+    # that have to match a mode the sensor really has. They agree deliberately:
+    # two different defaults in two files is how a camera ends up being asked
+    # for a mode nobody chose.
     width: int = 1920
-    height: int = 1200
-    framerate: int = 60
+    height: int = 1080
+    framerate: int = 30
 
     def input_args(self) -> list[str]:
         if self.kind == "camera":
@@ -50,7 +55,7 @@ class Source:
             return ["-f", "lavfi", "-re", "-i", self.target]
         raise ValueError(f"unknown source kind: {self.kind}")
 
-    def producer_command(self) -> list[str] | None:
+    def producer_command(self, *, segment_seconds: float = 1.0) -> list[str] | None:
         """The process that feeds ffmpeg, when one is needed.
 
         Only the Pi ribbon camera needs this. `rpicam-vid` owns the sensor and
@@ -58,14 +63,24 @@ class Source:
         that encode is done in software by rpicam-vid itself; on a Pi 4 it uses
         the hardware encoder. Either way ffmpeg receives an encoded stream, so
         the segmenter can copy rather than re-encode - see `Recorder`.
+
+        `--intra` matters more than it looks. The segmenter only cuts on a
+        keyframe, and in this path it is not encoding, so it cannot make one -
+        it takes what the producer gives it. Left at the default the stream gets
+        a keyframe every couple of seconds and every "one-second" segment is
+        really two, which doubles the error at both ends of every clip. Asking
+        for one keyframe per segment is what keeps a cut landing where the
+        umpire tapped.
         """
         if self.kind != "libcamera":
             return None
+        intra = max(1, round(self.framerate * segment_seconds))
         return [
             "rpicam-vid", "--camera", self.target, "--timeout", "0",
             "--width", str(self.width), "--height", str(self.height),
             "--framerate", str(self.framerate),
             "--codec", "h264", "--inline",  # inline headers: every segment is playable
+            "--intra", str(intra),
             "--nopreview", "--output", "-",
         ]
 
@@ -75,7 +90,14 @@ class Source:
         return self.kind == "libcamera"
 
     @classmethod
-    def parse(cls, spec: str) -> "Source":
+    def parse(
+        cls,
+        spec: str,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        framerate: int | None = None,
+    ) -> "Source":
         """One of:
 
         `camera:/dev/video0`     a USB camera
@@ -90,7 +112,12 @@ class Source:
             raise FileNotFoundError(target)
         if kind not in ("camera", "libcamera", "file", "pattern"):
             raise ValueError(f"unknown source kind: {kind!r}")
-        return cls(kind=kind, target=target)
+        geometry = {
+            k: v
+            for k, v in (("width", width), ("height", height), ("framerate", framerate))
+            if v is not None
+        }
+        return cls(kind=kind, target=target, **geometry)
 
     def output_filters(self) -> list[str]:
         """Make presentation timestamps climb, whatever the input does.

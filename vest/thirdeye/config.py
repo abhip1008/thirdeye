@@ -10,7 +10,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="THIRDEYE_", env_file=".env")
+    model_config = SettingsConfigDict(
+        env_prefix="THIRDEYE_",
+        # /etc/thirdeye.env is what systemd feeds the service on the vest. It is
+        # read here too so that a command run by hand - `python -m
+        # thirdeye.pairing`, say - sees the same configuration as the running
+        # service. Otherwise the pairing code prints the default address while
+        # the vest is actually on another one, which scans perfectly and points
+        # the phone at nothing.
+        env_file=(".env", "/etc/thirdeye.env"),
+    )
 
     # Identity
     camera_id: str = "vest-01"
@@ -97,6 +106,31 @@ class Settings(BaseSettings):
     encoder: str | None = None
     """Force a specific ffmpeg encoder. On the vest this is the hardware one;
     left unset it falls back to libx264, which is right everywhere else."""
+
+    width: int = 1920
+    height: int = 1080
+    framerate: int = 30
+    """What to ask the camera for.
+
+    These have to be a mode the sensor actually has. A camera asked for a
+    geometry it does not support either fails to start or quietly gives
+    something else, and on the prototype's OV5647 the old default of 1920x1200
+    at 60 was neither of its two real modes - it lists 1080p30 and 640x480 at
+    about 60. Run `rpicam-hello --list-cameras`, or `scripts/check-hardware.sh`,
+    and set these to what comes back.
+
+    1080p30 as the default because it is the mode the most likely sensor has.
+    The production AR0234 is 1920x1200 global shutter, and that is a config
+    change rather than a code change."""
+
+    advertise_host: str = "192.168.43.1"
+    """The address the pairing code tells the phone to use.
+
+    The vest's own access point hands out 192.168.43.1. A Raspberry Pi hotspot
+    made with nmcli is 10.42.0.1, and a vest sitting on a home network during
+    development is whatever DHCP gave it. Getting this wrong produces a pairing
+    code that scans perfectly and points the phone at nothing, so it is a knob
+    rather than a constant."""
 
 
 
