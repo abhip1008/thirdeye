@@ -42,6 +42,16 @@ opens the connection. Tightening this buys very little - the nonce is what
 actually stops replay - and costs a phone whose clock drifted the ability to
 connect at all, in a field, with no way to fix it."""
 
+SKEW_REASON = "clock skew"
+"""Returned when the timestamp is too far from the vest's clock.
+
+An exact string because the caller acts on it: a vest with no real-time clock
+and no internet - which is every vest, in a field - boots believing it is
+whenever it was last shut down. The phone's clock is the accurate one, but
+accuracy is not what signing needs; agreement is. So a refusal for this reason
+carries the vest's own clock back, and the phone signs in vest time from then
+on. Any other refusal is not something a client can correct by trying again."""
+
 NONCE_MEMORY = 4096
 """Nonces remembered, oldest dropped first. At two requests a delivery this is
 many hours of match, and it is bounded so a flood cannot exhaust memory."""
@@ -131,7 +141,8 @@ class Verifier:
             return "bad timestamp"
 
         if abs(now - sent_at) > MAX_SKEW_SECONDS:
-            return f"timestamp is {abs(now - sent_at):.0f}s away"
+            log.warning("refusing a request stamped %.0fs from this clock", now - sent_at)
+            return SKEW_REASON
 
         # Verified against the string that arrived, not a re-rendering of it.
         expected = sign(self.key, method, path, timestamp, nonce)

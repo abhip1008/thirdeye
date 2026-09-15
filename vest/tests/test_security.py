@@ -15,6 +15,7 @@ import pytest
 from thirdeye.security import (
     KEY_BYTES,
     MAX_SKEW_SECONDS,
+    SKEW_REASON,
     Verifier,
     load_or_create_key,
     now_stamp,
@@ -77,7 +78,7 @@ def test_an_old_request_is_refused(verifier: Verifier) -> None:
     now = time.time()
     request = signed(now - MAX_SKEW_SECONDS - 60)
     request["now"] = now
-    assert "away" in (verifier.check(**request) or "")
+    assert verifier.check(**request) == SKEW_REASON
 
 
 def test_a_request_from_the_future_is_refused_too(verifier: Verifier) -> None:
@@ -86,7 +87,7 @@ def test_a_request_from_the_future_is_refused_too(verifier: Verifier) -> None:
     now = time.time()
     request = signed(now + MAX_SKEW_SECONDS + 60)
     request["now"] = now
-    assert "away" in (verifier.check(**request) or "")
+    assert verifier.check(**request) == SKEW_REASON
 
 
 def test_the_wrong_key_does_not_work(verifier: Verifier) -> None:
