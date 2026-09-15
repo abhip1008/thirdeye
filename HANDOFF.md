@@ -54,19 +54,13 @@ alone; they have never been connected to each other.
 Production target is a Radxa ROCK 5C with an AR0234 global-shutter camera.
 Nothing has been bought or brought up against that target yet.
 
-Separate prototyping is happening on a Raspberry Pi 5 with an Arducam OV5647,
-outside this repo. State as of 2026-09-14:
+Separate prototyping is happening on a Raspberry Pi 5 with an Arducam OV5647.
+The camera works and the full record is in `docs/pi-prototype.md`: the
+`config.txt` settings, the confirmed commands, the sensor modes, the microSD
+failure that cost a day, and the standalone WebSocket server that should be
+discarded rather than merged.
 
-- Camera works. `camera_auto_detect=0` and `dtoverlay=ov5647` in
-  `/boot/firmware/config.txt`, plugged into CAM1, no `,cam0` suffix.
-  `rpicam-hello`, `rpicam-still` and `rpicam-vid` all confirmed.
-- An earlier microSD failed mid-bring-up and corrupted the OS. Reflashed onto a
-  high-endurance card. Keep the better power supply; brownouts caused it.
-- Pi broadcasts a `UmpireCam` hotspot at 10.42.0.1 via nmcli. A WebSocket
-  server on port 8765 accepts START and STOP from a phone browser.
-- That WebSocket work predates knowing this repo's vest service exists and
-  duplicates it. It should be discarded rather than merged; the Pi is a
-  `libcamera:0` source for `thirdeye.main`, not a second implementation.
+Nothing in this repository has run on the Pi yet.
 
 **Next action:** run the real vest service on the Pi with
 `THIRDEYE_SOURCE=libcamera:0` and point the phone at it.
