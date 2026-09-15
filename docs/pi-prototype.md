@@ -88,8 +88,11 @@ than the 1920x1200 at 60 the production sensor will do. `scripts/setup-pi.sh`
 installs the service and `scripts/check-hardware.sh` prints the sensor's mode
 list; `vest/README.md` has the bring-up in order.
 
-**This has not been run yet.** Nothing in this repository has executed on the
-Pi. That is the next thing to do.
+**2026-09-15: this runs on the Pi and records from the camera.** 1296x972 at 30,
+software encoding at about half a core, 1.2 Mbps, a full 300-second rolling
+buffer. `scripts/check_clip.py` cuts a clip from that footage, serves it, and
+passes all sixteen of its checks. The five bugs that stood between here and
+there are below.
 
 ### Three things fixed in advance of it
 

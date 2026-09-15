@@ -91,13 +91,17 @@ encoding at 1.43x realtime, `rpicam-vid` at about 50% of one core at this mode,
 `/data` is on the SD card - move it to a USB SSD before any long soak, since a
 card has already been lost to this.
 
-`vest/scripts/check_clip.py` is the app in a script - signed requests, a match,
-a marker pair, download, hash, resume, ffprobe - for separating "the vest cannot
-cut it" from "the app cannot fetch it" before a phone is involved. Passes
-against a file source; not yet run against the camera.
+**2026-09-15: `check_clip.py` passes on the Pi, against the camera.** All 16
+checks - signed requests, a match, a marker pair at both edges in vest time, the
+clip announcement, download, length, SHA-256, a resumed download reassembling
+byte for byte, and ffprobe confirming real video at the frame rate the review
+screen will step through it with.
 
-**Next action:** run `check_clip.py` on the Pi, then pair a phone with it over
-the home Wi-Fi and get the first clip across - vest at 192.168.4.82, key from `python -m thirdeye.pairing`, mock
+So the entire vest side is now proven on real footage rather than on a file
+standing in for a camera. What has never run against a real vest is the app.
+
+**Next action:** pair a phone with it over the home Wi-Fi and get the first clip
+across - vest at 192.168.4.82, key from `python -m thirdeye.pairing`, mock
 vest off in the app's settings. Nothing in the marker-to-clip path has run
 against real footage yet: cutting, hashing and transfer are all still only
 proven against a file standing in for a camera. The access point comes after
