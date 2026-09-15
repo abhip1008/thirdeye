@@ -57,9 +57,18 @@ fi
 echo
 echo "3. which camera is attached?"
 if command -v rpicam-hello >/dev/null 2>&1 || command -v libcamera-hello >/dev/null 2>&1; then
-  cam=$( (rpicam-hello --list-cameras 2>/dev/null || libcamera-hello --list-cameras 2>/dev/null) | grep -E "^[0-9]+ *:" | head -3)
-  [ -n "$cam" ] && { ok "ribbon camera found - use THIRDEYE_SOURCE=libcamera:0"; echo "$cam" | sed 's/^/       /'; } \
-                || no "libcamera sees no camera"
+  listing=$(rpicam-hello --list-cameras 2>/dev/null || libcamera-hello --list-cameras 2>/dev/null)
+  cam=$(echo "$listing" | grep -E "^[0-9]+ *:" | head -3)
+  if [ -n "$cam" ]; then
+    ok "ribbon camera found - use THIRDEYE_SOURCE=libcamera:0"
+    # The modes matter as much as the camera. A sensor asked for a geometry it
+    # does not have either refuses to start or quietly gives something else,
+    # and the second is the one that wastes an afternoon. Set THIRDEYE_WIDTH,
+    # THIRDEYE_HEIGHT and THIRDEYE_FRAMERATE to a line from this list.
+    echo "$listing" | sed 's/^/       /'
+  else
+    no "libcamera sees no camera"
+  fi
 else
   warn "rpicam-hello not installed; cannot check the ribbon connector"
 fi
@@ -84,6 +93,21 @@ fi
 echo
 echo "5. is there somewhere to put five minutes of video?"
 df -h /data 2>/dev/null | tail -1 | awk '{print "  " $4 " free on " $6}' || warn "/data does not exist yet"
+
+echo
+echo "6. does it know what time it is?"
+# A vest has no real-time clock and, at a ground, no internet. It boots
+# believing it is whenever it was last switched off. The phone corrects for that
+# when it signs requests, so this is not fatal - but the vest names its match
+# folders after the date, and a vest that thinks it is last Tuesday files
+# Saturday's cricket under last Tuesday.
+if command -v timedatectl >/dev/null 2>&1; then
+  synced=$(timedatectl show -p NTPSynchronized --value 2>/dev/null)
+  [ "$synced" = "yes" ] && ok "clock is synchronised: $(date)" \
+                        || warn "clock is NOT synchronised: $(date) - fit an RTC battery, or set it before a match"
+else
+  warn "cannot tell; the clock currently reads $(date)"
+fi
 
 echo
 echo "Everything above is a measurement, not a specification. If 1 and 2 both"
