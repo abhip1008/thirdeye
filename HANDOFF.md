@@ -20,9 +20,15 @@ No open work.
 
 ## Mobile
 
-Phase 1 complete. 55 tests, typecheck clean, lint clean, both production
+Phase 1 complete. 84 tests, typecheck clean, lint clean, both production
 bundles export, iOS project compiles in Xcode. HMAC-SHA256 request signing and
 the signed control-channel handshake are in.
+
+Signing is stamped in *vest* time, not phone time, because a vest has no
+real-time clock. A request refused for clock skew comes back with the vest's
+clock in `X-TE-Time`; the phone adopts it and retries once. `net/vestClock.ts`
+owns that offset and `net/signedFetch.ts` is the retry - every signed HTTP call
+goes through it.
 
 Not yet run on a physical device. The unverified list is in `README.md` under
 "What is not verified, and needs a phone". Highest risk in order:
@@ -40,9 +46,16 @@ Not yet run on a physical device. The unverified list is in `README.md` under
 
 Service is real: continuous buffer, cut on marker, HTTP serve with resume,
 signed requests, pairing code. Runs on a laptop with `THIRDEYE_SOURCE=file:`
-or `pattern:`. 34 tests plus a 20-check end-to-end run.
+or `pattern:`. 61 tests plus a 30-check end-to-end run.
 
 The camera is the only remaining fake.
+
+Ready for the Pi as of 2026-09-14: capture geometry is configuration
+(`THIRDEYE_WIDTH`/`HEIGHT`/`FRAMERATE`), a recorder restart no longer leaves
+`rpicam-vid` holding the sensor, the camera's own stderr is what gets reported
+when the camera is what is wrong, the systemd unit binds 0.0.0.0 rather than
+loopback, and the address in the pairing code is `THIRDEYE_ADVERTISE_HOST`
+rather than a constant. `scripts/setup-pi.sh` installs the lot.
 
 **Next action:** connect the phone to a running vest. Both halves are verified
 alone; they have never been connected to each other.
@@ -60,10 +73,14 @@ The camera works and the full record is in `docs/pi-prototype.md`: the
 failure that cost a day, and the standalone WebSocket server that should be
 discarded rather than merged.
 
-Nothing in this repository has run on the Pi yet.
+Nothing in this repository has run on the Pi yet. The software side of that is
+now done and tested - see the Vest section - so what is left is the bring-up
+itself, in `vest/README.md` under "Putting it on a Raspberry Pi".
 
-**Next action:** run the real vest service on the Pi with
-`THIRDEYE_SOURCE=libcamera:0` and point the phone at it.
+**Next action:** `sudo ./scripts/setup-pi.sh` on the Pi, set the capture mode to
+one the OV5647 actually has (1080p30), start the service, and pair a phone over
+the home Wi-Fi. The access point comes after a clip has reached a phone, so that
+only one thing is new at a time.
 
 ---
 

@@ -69,25 +69,56 @@ test does, including three shapes that must be rejected.
 
 ## Putting it on a Raspberry Pi
 
+Two things are new at once here - a camera and a network - so bring them up one
+at a time. The camera first, on the Wi-Fi the Pi is already on. The access point
+only after a phone has downloaded a clip.
+
 ```bash
-sudo apt install ffmpeg python3-venv hostapd dnsmasq rpicam-apps
-git clone <this repo> /opt/thirdeye && cd /opt/thirdeye/vest
-python3 -m venv .venv && ./.venv/bin/pip install -e .
+git clone <this repo> ~/thirdeye && cd ~/thirdeye
 
-# measure the board before trusting any of it
-../scripts/check-hardware.sh
-
-sudo cp deploy/hostapd.conf /etc/hostapd/hostapd.conf
-sudo cp deploy/dnsmasq.conf /etc/dnsmasq.d/thirdeye.conf
-sudo cp deploy/thirdeye.env /etc/thirdeye.env      # then edit it
-sudo cp deploy/systemd/thirdeye.service /etc/systemd/system/
-sudo systemctl enable --now hostapd dnsmasq thirdeye
+./scripts/check-hardware.sh     # measure the board before trusting any of it
+sudo ./scripts/setup-pi.sh      # packages, service account, /data, systemd
+sudoedit /etc/thirdeye.env      # the camera and the capture mode
+sudo systemctl start thirdeye
 ```
 
-Then set `THIRDEYE_SOURCE` in `/etc/thirdeye.env` to whichever camera
-`check-hardware.sh` found: `libcamera:0` for one on the ribbon connector,
-`camera:/dev/video0` for USB. Nothing else in the app changes - the phone finds
-the vest from its pairing code.
+`setup-pi.sh` is safe to run twice and never touches an existing signing key.
+It deliberately does not configure the access point.
+
+Three values in `/etc/thirdeye.env` have to be right or nothing works:
+
+| Setting | What it must be |
+|---|---|
+| `THIRDEYE_SOURCE` | `libcamera:0` for a camera on the ribbon connector, `camera:/dev/video0` for USB. `check-hardware.sh` says which you have. |
+| `THIRDEYE_WIDTH` / `HEIGHT` / `FRAMERATE` | **A mode the sensor really has.** Not a mode you would like it to have. `check-hardware.sh` prints the list. Asked for a mode it lacks, a camera either refuses to start or quietly gives you something else, and the second wastes an afternoon. |
+| `THIRDEYE_ADVERTISE_HOST` | The address the phone should dial. `192.168.43.1` on the vest's own AP, `10.42.0.1` on an nmcli hotspot, or whatever DHCP gave the Pi while it is still on your home network. Get it wrong and the pairing code scans perfectly and points the phone at nothing. |
+
+Then the access point, once a clip has actually reached a phone:
+
+```bash
+sudo apt install hostapd dnsmasq
+sudo cp vest/deploy/hostapd.conf /etc/hostapd/hostapd.conf
+sudo cp vest/deploy/dnsmasq.conf /etc/dnsmasq.d/thirdeye.conf
+sudo systemctl enable --now hostapd dnsmasq
+```
+
+Change `THIRDEYE_ADVERTISE_HOST` to the AP's address at the same time, and
+print a new pairing code.
+
+> **While a hotspot is up the Pi has no route to the internet**, so `apt` fails
+> with a DNS error. Bring it down, install, bring it back up.
+
+### The clock
+
+A Pi has no real-time clock unless you fit the battery, and at a ground it has
+no internet either, so it boots believing it is whenever it was last switched
+off. The phone handles this: a request the vest refuses for clock skew comes
+back carrying the vest's own clock, and the phone signs in vest time from then
+on. Nothing to configure.
+
+What it does not fix: the vest names match folders after the date, so a vest
+that thinks it is last Tuesday files Saturday's cricket under last Tuesday.
+Worth setting the clock, or fitting the battery, before a match that matters.
 
 ### The pairing code
 

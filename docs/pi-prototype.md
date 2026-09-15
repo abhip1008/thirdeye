@@ -74,8 +74,45 @@ hardware encoder. Watch CPU on the Pi 5 at the mode you pick. The production
 board is expected to use `THIRDEYE_ENCODER=h264_rkmpp`, which does not apply
 here.
 
+The capture mode is configuration, not code:
+
+```bash
+THIRDEYE_SOURCE=libcamera:0
+THIRDEYE_WIDTH=1920
+THIRDEYE_HEIGHT=1080
+THIRDEYE_FRAMERATE=30
+```
+
+Those must name a mode the sensor really has - for this OV5647, 1080p30 rather
+than the 1920x1200 at 60 the production sensor will do. `scripts/setup-pi.sh`
+installs the service and `scripts/check-hardware.sh` prints the sensor's mode
+list; `vest/README.md` has the bring-up in order.
+
 **This has not been run yet.** Nothing in this repository has executed on the
 Pi. That is the next thing to do.
+
+### Three things fixed in advance of it
+
+Written down because each was found by reading the code against these notes,
+not by running it, and each would have looked like a camera problem on the day.
+
+- **The capture geometry was hardcoded** at 1920x1200 at 60 - a mode this sensor
+  does not have. It is now `THIRDEYE_WIDTH`/`HEIGHT`/`FRAMERATE`.
+- **A restart left the camera held.** `rpicam-vid` owns the sensor exclusively.
+  If ffmpeg died, the supervisor started a second `rpicam-vid` while the first
+  was still running, so every restart after the first failed with the camera in
+  use - a vest that answers health, looks alive, and never records another ball.
+  The old process is now stopped first, and `rpicam-vid`'s own stderr is kept,
+  so "no cameras available" is reported instead of ffmpeg's complaint about an
+  empty stream.
+- **The systemd unit bound to 127.0.0.1**, which from the phone is
+  indistinguishable from a vest that is switched off.
+
+Also, because the Pi has no real-time clock: a signed request refused for clock
+skew now comes back carrying the vest's own clock, and the phone adopts it and
+retries. Without that, a vest that boots believing it is last Tuesday refuses
+every request the phone makes, and there is nothing an umpire in a field can do
+about it.
 
 ## What was built on the Pi and should be discarded
 

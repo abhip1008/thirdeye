@@ -398,10 +398,11 @@ because uniform ones are precisely what hid it.
 | A tap older than the buffer | Refused, not turned into an empty clip |
 | **Deletion after twelve balls** | 16 clips seeded on a device; the app's own sweep left the 12 newest plus one kept and one reviewed |
 | **Signed requests, against a live vest** | The app's own signing module, unmodified, accepted over both HTTP and the control channel; unsigned refused on both; a replayed signature refused; a signature moved to another path refused |
+| **Two clocks that disagree** | Signed 9,000 seconds out against the running vest: refused, the vest's clock came back with the refusal, the phone adopted it and the retry was accepted. No hand intervention |
 | Database migration on a device | Correct schema and version |
 | The app runs on iOS | Real build, launches, screens render |
 | Permissions of the shipped app | Camera and local network only |
-| Tests | 70 phone, 49 vest, 27 end-to-end checks |
+| Tests | 84 phone, 61 vest, 30 end-to-end checks |
 
 ### ○ Not proven — and honestly so
 
@@ -470,7 +471,7 @@ Seven phases. Three are done. One of the remaining ones is not code.
 | | Phase | State |
 |---|---|---|
 | ● | Foundations and the app | Done |
-| ○ | Vest hardware brings up | **The only one needing hardware** |
+| ◐ | Vest hardware brings up | Software side done; **the only one needing hardware** |
 | ● | The link | Built and proven with a file for a camera |
 | ● | Buffer and cutting | Built and proven |
 | ◐ | Hardening — signed requests done, retry next | In progress |
