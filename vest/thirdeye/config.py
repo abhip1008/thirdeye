@@ -123,6 +123,14 @@ class Settings(BaseSettings):
     The production AR0234 is 1920x1200 global shutter, and that is a config
     change rather than a code change."""
 
+    camera_extra_args: str = ""
+    """Extra arguments for rpicam-vid, space separated.
+
+    For trying something with a camera in front of you - `--shutter 4000` to
+    freeze a fast ball, say - without waiting for a code change. The options
+    differ between boards and between versions of rpicam-apps, so the useful
+    ones are found in a net, not here."""
+
     advertise_host: str = "192.168.43.1"
     """The address the pairing code tells the phone to use.
 

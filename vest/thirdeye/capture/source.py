@@ -30,6 +30,15 @@ class Source:
     height: int = 1080
     framerate: int = 30
 
+    extra_args: tuple[str, ...] = ()
+    """Anything else to pass the camera, from THIRDEYE_CAMERA_EXTRA_ARGS.
+
+    An escape hatch, and an honest one: this talks to a program whose options
+    differ between boards and between versions of rpicam-apps, and the useful
+    ones are discovered with a camera in front of you rather than here. Somebody
+    on a Pi can try `--shutter 4000` against a real ball without waiting for a
+    release."""
+
     def input_args(self) -> list[str]:
         if self.kind == "camera":
             # A USB camera. UVC is a standard class, so there is no driver to
@@ -80,8 +89,17 @@ class Source:
             "--width", str(self.width), "--height", str(self.height),
             "--framerate", str(self.framerate),
             "--codec", "h264", "--inline",  # inline headers: every segment is playable
+            # Name the output format, because the filename cannot imply it.
+            # Where there is no hardware H.264 encoder - a Pi 5, which had it
+            # removed - rpicam-vid compresses through libav, and libav works out
+            # the container from the file extension. Writing to stdout there is
+            # no extension, so it gives up with "Unable to choose an output
+            # format for '-'". `h264` here is the raw elementary stream, which
+            # is exactly what the ffmpeg downstream is told to expect.
+            "--libav-format", "h264",
             "--intra", str(intra),
             "--nopreview", "--output", "-",
+            *self.extra_args,
         ]
 
     @property
@@ -97,6 +115,7 @@ class Source:
         width: int | None = None,
         height: int | None = None,
         framerate: int | None = None,
+        extra_args: str | None = None,
     ) -> "Source":
         """One of:
 
@@ -112,12 +131,14 @@ class Source:
             raise FileNotFoundError(target)
         if kind not in ("camera", "libcamera", "file", "pattern"):
             raise ValueError(f"unknown source kind: {kind!r}")
-        geometry = {
+        geometry: dict[str, object] = {
             k: v
             for k, v in (("width", width), ("height", height), ("framerate", framerate))
             if v is not None
         }
-        return cls(kind=kind, target=target, **geometry)
+        if extra_args:
+            geometry["extra_args"] = tuple(extra_args.split())
+        return cls(kind=kind, target=target, **geometry)  # type: ignore[arg-type]
 
     def output_filters(self) -> list[str]:
         """Make presentation timestamps climb, whatever the input does.

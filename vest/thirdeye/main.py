@@ -52,6 +52,7 @@ recorder = Recorder(
         width=settings.width,
         height=settings.height,
         framerate=settings.framerate,
+        extra_args=settings.camera_extra_args,
     ),
     buffer=buffer,
     video_bitrate=settings.video_bitrate,

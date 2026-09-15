@@ -83,3 +83,26 @@ def test_an_unknown_source_is_refused(tmp_path) -> None:
 def test_geometry_falls_back_to_the_defaults() -> None:
     plain = Source.parse("libcamera:0")
     assert (plain.width, plain.height, plain.framerate) == (1920, 1080, 30)
+
+
+def test_the_output_format_is_named_because_stdout_has_no_extension() -> None:
+    """Where there is no hardware H.264 encoder - a Pi 5 - rpicam-vid goes
+    through libav, which infers its container from the file extension. Writing
+    to stdout there is none, and it refuses to guess: "Unable to choose an
+    output format for '-'". Found on a Pi, at the first start with a camera."""
+    command = Source.parse("libcamera:0").producer_command()
+    assert command[command.index("--libav-format") + 1] == "h264"
+    # And it has to be the raw elementary stream, because that is what the
+    # ffmpeg reading the other end of the pipe is told to expect.
+    assert Source.parse("libcamera:0").input_args()[:2] == ["-f", "h264"]
+
+
+def test_extra_camera_arguments_are_passed_through() -> None:
+    # The escape hatch: options differ between boards and between versions of
+    # rpicam-apps, and the useful ones are found with a camera in front of you.
+    source = Source.parse("libcamera:0", extra_args="--shutter 4000 --gain 2")
+    assert source.producer_command()[-4:] == ["--shutter", "4000", "--gain", "2"]
+
+
+def test_no_extra_arguments_means_no_extra_arguments() -> None:
+    assert Source.parse("libcamera:0").producer_command()[-1] == "-"
