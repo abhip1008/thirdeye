@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -43,6 +44,8 @@ class Recorder:
 
         self._process: asyncio.subprocess.Process | None = None
         self._producer: asyncio.subprocess.Process | None = None
+        self._producer_tail = ""
+        self._drain: asyncio.Task[None] | None = None
         self._tasks: list[asyncio.Task[None]] = []
         self._started_at: float | None = None
         self.restarts = 0
@@ -147,23 +150,44 @@ class Recorder:
                     # ffmpeg reads it from the pipe and only cuts it into
                     # segments. Two processes, one of which we also have to
                     # clean up - see _kill.
-                    self._producer = await asyncio.create_subprocess_exec(
-                        *producer,
-                        stdout=asyncio.subprocess.PIPE,
-                        # Kept, not discarded. When the camera is the thing that
-                        # is wrong - a mode the sensor does not have, a ribbon
-                        # half seated, another process holding it - this is the
-                        # only place that says so. ffmpeg downstream sees an
-                        # empty pipe and reports something about an invalid
-                        # stream, which sends you looking in the wrong place.
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    self._process = await asyncio.create_subprocess_exec(
-                        *self._command(index, start_time),
-                        stdin=self._producer.stdout,
-                        stdout=asyncio.subprocess.DEVNULL,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
+                    #
+                    # A real OS pipe, not asyncio's. `stdout=PIPE` hands back a
+                    # StreamReader, which is an object in this process, and the
+                    # child needs a file descriptor - passing the reader across
+                    # fails with "'StreamReader' object has no attribute
+                    # 'fileno'" the moment a camera is actually attached. The
+                    # two ends are closed here as soon as the children have
+                    # them, or the reader never sees EOF when the camera stops
+                    # and ffmpeg waits forever for a frame that is not coming.
+                    read_fd, write_fd = os.pipe()
+                    try:
+                        self._producer = await asyncio.create_subprocess_exec(
+                            *producer,
+                            stdout=write_fd,
+                            # Kept, not discarded. When the camera is the thing
+                            # that is wrong - a mode the sensor does not have, a
+                            # ribbon half seated, another process holding it -
+                            # this is the only place that says so. ffmpeg
+                            # downstream sees an empty pipe and reports
+                            # something about an invalid stream, which sends you
+                            # looking in the wrong place.
+                            stderr=asyncio.subprocess.PIPE,
+                        )
+                    finally:
+                        os.close(write_fd)
+
+                    self._producer_tail = ""
+                    self._drain = asyncio.create_task(self._drain_producer())
+
+                    try:
+                        self._process = await asyncio.create_subprocess_exec(
+                            *self._command(index, start_time),
+                            stdin=read_fd,
+                            stdout=asyncio.subprocess.DEVNULL,
+                            stderr=asyncio.subprocess.PIPE,
+                        )
+                    finally:
+                        os.close(read_fd)
                 self._started_at = start_time
                 stderr = await self._process.stderr.read() if self._process.stderr else b""
                 code = await self._process.wait()
@@ -171,7 +195,7 @@ class Recorder:
 
                 # If the camera died first, ffmpeg's complaint is a symptom and
                 # the producer's is the cause. Report the cause.
-                camera_error = await self._producer_error()
+                camera_error = self._producer_error()
                 if camera_error:
                     self.last_error = f"camera: {camera_error}"
                 log.error("recorder stopped (%s), restarting", self.last_error)
@@ -185,16 +209,29 @@ class Recorder:
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 10.0)
 
-    async def _producer_error(self) -> str | None:
-        """What rpicam-vid said on its way out, if it has gone."""
+    async def _drain_producer(self) -> None:
+        """Keep reading the camera's stderr, and keep the tail of it.
+
+        Draining rather than reading once at the end, because a pipe nobody
+        empties fills up and then the process writing to it blocks. That would
+        be a camera that stops producing frames after some hours of chatter,
+        with nothing in any log to say why - the exact class of silent stop this
+        recorder exists to avoid.
+        """
         producer = self._producer
         if producer is None or producer.stderr is None:
-            return None
-        try:
-            text = await asyncio.wait_for(producer.stderr.read(), timeout=1.0)
-        except (asyncio.TimeoutError, ValueError):
-            return None
-        return text.decode(errors="replace").strip()[-300:] or None
+            return
+        tail = b""
+        while True:
+            chunk = await producer.stderr.read(4096)
+            if not chunk:
+                return
+            tail = (tail + chunk)[-2000:]
+            self._producer_tail = tail.decode(errors="replace").strip()
+
+    def _producer_error(self) -> str | None:
+        """The last thing the camera said. Only interesting once it has died."""
+        return self._producer_tail[-300:] or None
 
     def _next_index(self) -> int:
         """Continue numbering across a restart, so the index stays monotonic."""
@@ -212,6 +249,11 @@ class Recorder:
             await asyncio.sleep(max(1.0, self.buffer.segment_seconds))
 
     async def _kill(self) -> None:
+        if self._drain is not None:
+            self._drain.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._drain
+            self._drain = None
         for process in (self._process, self._producer):
             if process is None or process.returncode is not None:
                 continue

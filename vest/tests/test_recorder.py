@@ -133,11 +133,14 @@ async def _what_the_camera_said_is_what_gets_reported(tmp_path) -> None:
 
 
 class _Says(_EmptyReader):
+    """Says its piece once, then reports end of stream, like a real pipe."""
+
     def __init__(self, text: bytes) -> None:
-        self._text = text
+        self._text: bytes | None = text
 
     async def read(self, *_: int) -> bytes:
-        return self._text
+        text, self._text = self._text, None
+        return text or b""
 
 
 async def _until(predicate, timeout: float = 3.0) -> None:
@@ -147,3 +150,59 @@ async def _until(predicate, timeout: float = 3.0) -> None:
             return
         await asyncio.sleep(0.01)
     raise AssertionError("condition never became true")
+
+
+class FakeCameraSource:
+    """A stand-in for the Pi ribbon camera that runs on any machine.
+
+    Same shape as a `libcamera:` Source - a producer process that writes an
+    encoded H.264 stream to stdout, and an ffmpeg that copies it into segments -
+    with ffmpeg generating the pictures instead of a sensor.
+    """
+
+    kind = "libcamera"
+    target = "0"
+    preencoded = True
+
+    def input_args(self) -> list[str]:
+        return ["-f", "h264", "-framerate", "30", "-i", "-"]
+
+    def producer_command(self, *, segment_seconds: float = 1.0) -> list[str]:
+        return [
+            "ffmpeg", "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc=size=320x240:rate=30:duration=6",
+            "-c:v", "libx264", "-preset", "ultrafast",
+            "-g", str(int(30 * segment_seconds)),
+            "-f", "h264", "-",
+        ]
+
+    def output_filters(self) -> list[str]:
+        return []
+
+
+def test_the_camera_pipeline_actually_produces_segments(tmp_path) -> None:
+    """Two real processes, one real pipe.
+
+    The tests above fake `create_subprocess_exec`, which is why they all passed
+    while the camera path could not start at all: the producer's stdout was
+    handed to ffmpeg as asyncio's StreamReader, an object in this process, where
+    a file descriptor was needed. Nothing that stubs the spawning can see that.
+    It failed the first time a camera was attached, with "'StreamReader' object
+    has no attribute 'fileno'".
+    """
+    asyncio.run(_the_camera_pipeline_actually_produces_segments(tmp_path))
+
+
+async def _the_camera_pipeline_actually_produces_segments(tmp_path) -> None:
+    buffer = RollingBuffer(directory=tmp_path / "buffer", segment_seconds=1.0, horizon_seconds=30)
+    recorder = Recorder(source=FakeCameraSource(), buffer=buffer)  # type: ignore[arg-type]
+
+    await recorder.start()
+    try:
+        await _until(lambda: len(list((tmp_path / "buffer").glob("seg_*.mp4"))) >= 2, timeout=25)
+        assert recorder.running
+        # Restarts here would mean the pipeline fell over and was rebuilt, which
+        # is exactly what a broken pipe looks like from the outside.
+        assert recorder.restarts == 0, recorder.last_error
+    finally:
+        await recorder.stop()
