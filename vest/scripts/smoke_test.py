@@ -123,6 +123,31 @@ def main() -> int:
         check("a signature does not transfer to another path",
               client.get("/api/session", headers=moved).status_code == 401)
 
+        # A vest has no real-time clock and no internet at a ground: it boots
+        # believing it is whenever it was last switched off. The phone cannot
+        # fix that, so the vest hands back its own clock and the phone signs in
+        # vest time from then on.
+        stamp = str(int(time.time()) - 9000)
+        nonce = pysecrets.token_hex(8)
+        skewed = client.get("/api/clips", headers={
+            "X-TE-Timestamp": stamp,
+            "X-TE-Nonce": nonce,
+            "X-TE-Signature": sign(signing_key, "GET", "/api/clips", stamp, nonce),
+        })
+        check("a badly skewed clock is refused", skewed.status_code == 401,
+              skewed.json().get("detail", ""))
+        vest_time = skewed.headers.get("X-TE-Time")
+        check("and the refusal carries the vest's own clock", bool(vest_time), str(vest_time))
+        if vest_time:
+            nonce = pysecrets.token_hex(8)
+            corrected = client.get("/api/clips", headers={
+                "X-TE-Timestamp": vest_time,
+                "X-TE-Nonce": nonce,
+                "X-TE-Signature": sign(signing_key, "GET", "/api/clips", vest_time, nonce),
+            })
+            check("so the next attempt, in vest time, is accepted",
+                  corrected.status_code == 200)
+
         try:
             with client.websocket_connect("/ws"):
                 check("an unsigned control channel is refused", False, "it was accepted")
