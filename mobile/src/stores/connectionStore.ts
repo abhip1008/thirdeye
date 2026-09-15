@@ -216,6 +216,12 @@ function handle(
 
     case 'clip_ready':
       void useClips.getState().onClipReady(message);
+      /* A clip arriving answers the question the refusal banner is asking.
+         That banner means "a tap of yours produced nothing", which is worth
+         interrupting an umpire for once - and then not again, for the rest of
+         an innings, about a ball that is two overs old. The count is still on
+         the diagnostics screen for anyone who wants the history. */
+      if (get().refused > 0) set({ refused: 0, lastRefusal: null });
       break;
 
     case 'clip_expired':

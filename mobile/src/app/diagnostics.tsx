@@ -59,7 +59,7 @@ export default function DiagnosticsScreen() {
           />
           <SettingRow
             label="Markers refused"
-            hint={connection.lastRefusal ? `Last: ${connection.lastRefusal}` : 'Taps the vest could not turn into a clip.'}
+            hint={connection.lastRefusal ? `Last: ${connection.lastRefusal}` : 'Taps the vest could not turn into a clip, since the last one that arrived.'}
             value={String(connection.refused)}
           />
           {connection.protocolMismatch && (
