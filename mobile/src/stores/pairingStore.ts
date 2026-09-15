@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { readSetting, writeSetting } from '@/db/settings';
 import { log } from '@/lib/log';
+import { resetVestClock } from '@/net/vestClock';
 import { audit } from '@/privacy/audit';
 import { secrets } from '@/privacy/secrets';
 import type { PairingPayload, UmpireEnd } from '@/types/protocol';
@@ -50,6 +51,9 @@ export const usePairing = create<PairingStore>((set, get) => ({
   },
 
   savePayload: async (payload) => {
+    // A different vest has a different clock, and its own idea of how far out
+    // it is. Nothing learned from the last one carries over.
+    resetVestClock();
     await writeSetting(K_HOST, payload.host);
     await writeSetting(K_CAMERA, payload.camera_id);
     await writeSetting(K_SSID, payload.ssid);
@@ -67,6 +71,7 @@ export const usePairing = create<PairingStore>((set, get) => ({
   },
 
   saveManual: async (host, cameraId, psk) => {
+    resetVestClock();
     await writeSetting(K_HOST, host);
     await writeSetting(K_CAMERA, cameraId);
     // Typed in rather than scanned, but it is the same secret and it goes to
@@ -84,6 +89,7 @@ export const usePairing = create<PairingStore>((set, get) => ({
   setUmpireEnd: (umpireEnd) => set({ umpireEnd }),
 
   forget: async () => {
+    resetVestClock();
     await writeSetting(K_HOST, '');
     await writeSetting(K_CAMERA, '');
     await writeSetting(K_SSID, '');

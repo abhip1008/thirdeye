@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { defaults } from '@/config/appConfig';
 import { log } from '@/lib/log';
 import type { Transport } from '@/net/transport';
+import { observePong, vestNow, vestOffset, vestOffsetRttMs } from '@/net/vestClock';
 import type {
   ClientMessage,
   ConnectionState,
@@ -51,9 +52,9 @@ interface ConnectionStore {
    * Seconds to add to this phone's clock to get the vest's.
    *
    * Every marker is stamped in vest time, so the vest never has to track a
-   * per-client offset and a second phone in v2 needs no extra work. Estimated
-   * from the heartbeat: the pong carries the vest's own clock, and the round
-   * trip says roughly when it was taken.
+   * per-client offset and a second phone in v2 needs no extra work. Mirrored
+   * here for the diagnostics screen; `net/vestClock.ts` owns it, because signing
+   * needs the same number before a control channel exists to learn it on.
    */
   clockOffset: number;
   /** Round trip of the sample the offset came from. Lower is a better estimate. */
@@ -119,6 +120,11 @@ export const useConnection = create<ConnectionStore>((set, get) => ({
     unsubscribe = null;
     active?.disconnect();
     active = null;
+    // The offset deliberately survives this. `attach` detaches first, and the
+    // clock is often learned before the channel exists - the first signed HTTP
+    // call is what corrects a vest that booted thinking it was last Tuesday.
+    // Throwing it away here would discard that correction a moment before the
+    // handshake that needs it. It is cleared when the phone pairs elsewhere.
     set({ state: 'disconnected', recording: false, transportName: null });
   },
 
@@ -132,7 +138,7 @@ export const useConnection = create<ConnectionStore>((set, get) => ({
     log.debug('link', `resync since ${highest}`);
   },
 
-  vestNow: () => Date.now() / 1000 + get().clockOffset,
+  vestNow: () => vestNow(),
 
   send: (message) => {
     if (!active || get().state !== 'connected') return false;
@@ -233,21 +239,11 @@ function handle(
 
     case 'pong': {
       const now = Date.now() / 1000;
-      const rttMs = Math.round((now - message.t) * 1000);
-      set({ rttMs });
+      set({ rttMs: Math.round((now - message.t) * 1000) });
 
-      // Keep the sample with the shortest round trip rather than the newest.
-      // A long round trip means more uncertainty about when the vest actually
-      // read its clock, so a quiet moment gives a better estimate than a busy
-      // one - and the offset drifts far more slowly than the network varies.
       if (message.vest_time !== undefined) {
-        const best = get().clockOffsetRttMs;
-        if (best === null || rttMs <= best) {
-          set({
-            clockOffset: message.vest_time - (message.t + (now - message.t) / 2),
-            clockOffsetRttMs: rttMs,
-          });
-        }
+        observePong(message.vest_time, message.t, now);
+        set({ clockOffset: vestOffset(), clockOffsetRttMs: vestOffsetRttMs() });
       }
       break;
     }

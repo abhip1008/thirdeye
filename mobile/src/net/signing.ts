@@ -2,6 +2,8 @@ import * as Crypto from 'expo-crypto';
 
 import { secrets } from '@/privacy/secrets';
 
+import { vestNow } from './vestClock';
+
 /**
  * Proving to the vest that a request came from this phone.
  *
@@ -16,6 +18,11 @@ import { secrets } from '@/privacy/secrets';
  * string that goes on the wire rather than as a number formatted at each end:
  * the first version of this rounded on one side and truncated on the other, and
  * signatures failed or passed depending on the fractional part of the second.
+ *
+ * It is stamped in *vest* time, not phone time. The vest refuses a timestamp
+ * more than five minutes from its own clock, and a vest has no real-time clock
+ * and no internet at a ground - it boots believing it is whenever it was last
+ * switched off. See `vestClock.ts`.
  */
 
 const BLOCK_SIZE = 64; // SHA-256 operates on 64-byte blocks
@@ -101,7 +108,7 @@ export async function signFor(method: string, path: string): Promise<Signature |
   const key = await secrets.getRequestPsk();
   if (!key) return null;
 
-  const timestamp = String(Math.floor(Date.now() / 1000));
+  const timestamp = String(Math.floor(vestNow()));
   const nonce = newNonce();
   return { timestamp, nonce, signature: await signRequest(key, method, path, timestamp, nonce) };
 }
