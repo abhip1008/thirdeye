@@ -61,7 +61,25 @@ fi
 "$REPO/vest/.venv/bin/pip" install -q -e "$REPO/vest"
 note "installed into $REPO/vest/.venv"
 
-say "5. configuration"
+say "5. can the service read its own code?"
+# The unit runs as an unprivileged user. A clone inside a home directory is a
+# trap on recent Raspberry Pi OS, where home directories are created 0750: the
+# install succeeds, the service fails at boot with a permission error, and
+# nothing about that points at the directory two levels up. Better to find out
+# here than in a log at a ground.
+if sudo -u "$USER_NAME" test -x "$REPO/vest/.venv/bin/python"; then
+  note "yes"
+else
+  echo "  the $USER_NAME user cannot read $REPO."
+  echo "  Either open the path up:"
+  echo "      sudo chmod o+x $(dirname "$REPO")"
+  echo "  or, better, keep the code somewhere made for it:"
+  echo "      sudo git clone <this repo> /opt/thirdeye && cd /opt/thirdeye"
+  echo "      sudo ./scripts/setup-pi.sh"
+  exit 1
+fi
+
+say "6. configuration"
 if [ -f /etc/thirdeye.env ]; then
   note "/etc/thirdeye.env exists, leaving it alone"
 else
@@ -70,7 +88,7 @@ else
   note "capture mode, and the address the pairing code advertises"
 fi
 
-say "6. service"
+say "7. service"
 # The unit ships with paths under /opt/thirdeye. A clone lives wherever it was
 # cloned, so the copy installed here points at this one.
 sed "s|/opt/thirdeye/vest|$REPO/vest|g; s|WorkingDirectory=/opt/thirdeye|WorkingDirectory=$REPO/vest|" \
