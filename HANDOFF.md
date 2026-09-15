@@ -100,7 +100,39 @@ screen will step through it with.
 So the entire vest side is now proven on real footage rather than on a file
 standing in for a camera. What has never run against a real vest is the app.
 
-**Next action:** pair a phone with it over the home Wi-Fi and get the first clip
+**2026-09-15: the whole loop runs on hardware.** The app, on a simulator on the
+same Wi-Fi, paired by hand, opened a signed control channel to the Pi, marked a
+delivery, and received a clip cut from the camera's own footage - announced,
+downloaded, hash-verified and committed. Reported good to review, including
+frame stepping, though that was judged by eye rather than measured.
+
+**The afternoon cost five hours to one loose ribbon.** The camera ran clean for
+31 minutes, then failed as the board warmed: first `Failed to queue buffer for
+CFE Image`, then after a reboot `no cameras available`, and finally an empty
+i2cdetect - nothing on the camera bus at all. It was the 15-pin end at the
+camera module, not clipped fully home. `docs/pi-prototype.md` has the sequence,
+because the failure changes its story as it worsens and none of the messages
+say "connector".
+
+Two software faults were found underneath it and are worth keeping in mind:
+
+- The vest reported `recording: true` for twelve minutes while writing nothing.
+  Fixed: `recording` now means footage is arriving, and a watchdog restarts a
+  stalled pipeline within ten seconds.
+- NTP corrected the clock forward 17 hours mid-session, which made every
+  buffered segment look older than the horizon, so the janitor swept all 1,850
+  of them in one pass. The buffer really was empty and the refusal that followed
+  was honest. Now logged loudly - **the fix is an RTC battery**, which this Pi
+  does not have.
+
+**Next action:** an RTC battery, and a soak - leave it recording for an hour and
+watch `restarts` and the buffer depth. Then the framing test, which is the gate:
+strap it to a chest and umpire two overs.
+
+The access point (`scripts/setup-hotspot.sh`) is still deliberately last, and
+now has a clip across ordinary Wi-Fi in front of it.
+
+Older note, kept: pair a phone with it over the home Wi-Fi and get the first clip
 across - vest at 192.168.4.82, key from `python -m thirdeye.pairing`, mock
 vest off in the app's settings. Nothing in the marker-to-clip path has run
 against real footage yet: cutting, hashing and transfer are all still only
