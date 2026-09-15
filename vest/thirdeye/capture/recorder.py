@@ -267,8 +267,17 @@ class Recorder:
                 log.exception("recorder failed to start")
 
             self.restarts += 1
+
+            # A run that actually recorded for a while and then fell over is an
+            # accident; come back immediately. A run that produced nothing is a
+            # camera that will not start, and retrying every few seconds makes
+            # that worse rather than better - each attempt asks libcamera for
+            # buffers the failed one may not have given back, which is how
+            # "Failed to queue buffer for CFE Image" turns into a loop that
+            # cannot recover from itself. Back off properly instead.
+            recorded_for = time.time() - start_time
+            backoff = 1.0 if recorded_for > self.stall_seconds * 2 else min(backoff * 2, 30.0)
             await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 10.0)
 
     async def _drain_producer(self) -> None:
         """Keep reading the camera's stderr, and keep the tail of it.
