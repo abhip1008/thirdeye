@@ -77,16 +77,22 @@
           "recordAudioAndroid": false
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "privacy": {
-        "dataCollected": "none",
+        "dataCollected": "none, unless the umpire opts into signing in",
         "analytics": "none",
-        "networkPeers": "the paired vest on its own access point"
+        "networkPeers": "the paired vest on its own access point",
+        "identity": "optional Auth0 sign-in; an email address, held in the keystore, never sent to the vest"
+      },
+      "auth0": {
+        "domain": "",
+        "clientId": ""
       }
     }
   }

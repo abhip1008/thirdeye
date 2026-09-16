@@ -11,6 +11,7 @@ import { totalBytesHeld } from '@/privacy/storage';
 import { useClips } from '@/stores/clipStore';
 import { useMatch } from '@/stores/matchStore';
 import { usePairing } from '@/stores/pairingStore';
+import { useAuth } from '@/stores/authStore';
 import { MockSpeed, useSettings } from '@/stores/settingsStore';
 import { colors } from '@/theme/colors';
 import { radius, space } from '@/theme/spacing';
@@ -27,6 +28,7 @@ import { PROTOCOL_VERSION } from '@/types/protocol';
  */
 export default function SettingsScreen() {
   const router = useRouter();
+  const auth = useAuth();
   const settings = useSettings();
   const pairing = usePairing();
   const clips = useClips((s) => s.clips);
@@ -130,6 +132,20 @@ export default function SettingsScreen() {
           accessibilityLabel="Block screenshots"
         />
       </View>
+
+      <Divider />
+
+      <SectionLabel>Account</SectionLabel>
+      <SettingRow
+        label={auth.identity ? (auth.identity.name ?? auth.identity.email ?? 'Signed in') : 'Sign in'}
+        value={auth.identity ? (auth.isStale() ? 'expired' : 'signed in') : 'optional'}
+        hint={
+          auth.identity
+            ? 'Third Eye works signed out too. Nothing on any screen is locked.'
+            : 'Optional, and needs internet — which the vest\u2019s own network does not have.'
+        }
+        onPress={() => router.push('/signin')}
+      />
 
       <Divider />
 

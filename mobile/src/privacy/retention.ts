@@ -140,6 +140,13 @@ export async function purgeEverything(): Promise<void> {
   clearFootage();
   const { wipeAllData } = await import('@/db/client');
   await wipeAllData();
+  // The keystore too, and the identity with it. "Delete everything" that leaves
+  // a name and an email address behind is not what those words mean, and the
+  // identity is the most personal thing this app holds.
+  const { useAuth } = await import('@/stores/authStore');
+  await useAuth.getState().signOut();
+  const { secrets } = await import('./secrets');
+  await secrets.clearAll();
   // Audited after the wipe so the record of the wipe survives it.
   await audit('privacy.wipe.all', null, { at: new Date().toISOString() });
 }

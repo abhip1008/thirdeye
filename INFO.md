@@ -269,7 +269,7 @@ Full design in [`docs/PRIVACY.md`](docs/PRIVACY.md). What is actually implemente
 | **Deletion is local and automatic** | The sweep runs on app start and after every clip. It needs neither the vest nor a network: **if this phone never sees a vest again, the clips still expire on schedule.** |
 | **Out of the platform backup** | Both operating systems copy app-private files to the owner's personal cloud by default. Both doors are now shut. |
 | **Screenshots blocked** | A screenshot escapes every rule above and lands in a camera roll. Blocked while a match is open, including the app-switcher preview. |
-| **Nothing identifies anyone** | A match is a date and a ground. No names, no teams, no scores. |
+| **Nothing identifies anyone on the field** | A match is a date and a ground. No names, no teams, no scores. The umpire may optionally sign in, which stores their own name and email in the phone's keystore — the only personal data the app has ever held, never sent to the vest, and erased by signing out. |
 | **An audit trail** | A system that deletes evidence must be able to say *what* it deleted and when. A timestamp, an event type, a ball number. No frames, no names. |
 | **Joining the network is not enough** | Every request that lists or hands over footage carries a signature made with a key that reaches the phone in the pairing code and never travels again. Photographing the code taped to the vest gets you onto the Wi-Fi and no further. |
 

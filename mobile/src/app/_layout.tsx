@@ -9,6 +9,7 @@ import { Screen, Body, Title } from '@/components/ui';
 import { getDb } from '@/db/client';
 import { log } from '@/lib/log';
 import { trimAuditLog } from '@/privacy/audit';
+import { useAuth } from '@/stores/authStore';
 import { useClips } from '@/stores/clipStore';
 import { useDelivery } from '@/stores/deliveryStore';
 import { useMatch } from '@/stores/matchStore';
@@ -22,10 +23,16 @@ import { View } from 'react-native';
  *
  *   1. open the database and run migrations   (nothing works without it)
  *   2. load settings                          (retention values come from here)
- *   3. resume an unfinished match, if any     (the app was killed mid-over)
- *   4. trim the audit log, sweep retention    (before a single clip is shown)
+ *   3. read the signed-in identity, if any    (from the keystore, no network)
+ *   4. resume an unfinished match, if any     (the app was killed mid-over)
+ *   5. trim the audit log, sweep retention    (before a single clip is shown)
  *
- * Step 4 runs on every launch, not on a timer and not when the vest asks.
+ * Step 3 reads the keystore and nothing else. It must never wait on Auth0: at a
+ * ground the phone is on the vest's access point, which has no internet, and an
+ * app that cannot start without an identity provider is an app that cannot
+ * start at a match.
+ *
+ * Step 5 runs on every launch, not on a timer and not when the vest asks.
  * If this phone never sees a vest again, the clips still expire on schedule.
  */
 /**
@@ -54,6 +61,7 @@ export default function RootLayout() {
       try {
         await getDb();
         await useSettings.getState().load();
+        await useAuth.getState().load();
         await useMatch.getState().hydrate();
 
         const match = useMatch.getState().match;

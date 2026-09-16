@@ -95,7 +95,7 @@ export const usePairing = create<PairingStore>((set, get) => ({
     await writeSetting(K_HOST, '');
     await writeSetting(K_CAMERA, '');
     await writeSetting(K_SSID, '');
-    await secrets.clearAll();
+    await secrets.clearPairing();
     await audit('pairing.forgotten', null);
     set({ paired: false, host: null, cameraId: null, ssid: null });
   },

@@ -41,11 +41,32 @@ Everything the system holds, and for how long.
 | Audit trail (what was purged, when) | Phone SQLite | Last 2000 rows | `trimAuditLog()` |
 | Match record (date, ground, camera id) | Phone SQLite | Indefinite until wiped | `matches` table |
 | Vest Wi-Fi passphrase, request signing key | Platform keystore | Until "Forget this vest" | `privacy/secrets.ts` |
+| **Umpire identity (name, email, Auth0 subject id)** — only if signed in | Platform keystore | Until "Sign out" or "Delete everything" | `privacy/secrets.ts`, `stores/authStore.ts` |
 | Diagnostic log lines | Memory only, never a file | Until the app closes | `lib/log.ts` |
 
-**Not collected at all:** audio, player names, team names, scores, umpire
-identity, phone location, contacts, device identifiers, crash reports, analytics
-of any kind.
+**Not collected at all:** audio, player names, team names, scores, phone
+location, contacts, device identifiers, crash reports, analytics of any kind.
+
+**Collected only if the umpire chooses it:** their own name and email address,
+through the optional Auth0 sign-in. This is the single piece of personal data
+the application has ever held, and everything about how it is handled follows
+from that:
+
+- It is **optional**, and nothing is gated on it. Every screen works signed out.
+- It lives in the **keystore**, not SQLite, so it is not in a database backup or
+  a state dump.
+- It is **never sent to the vest**. The vest authenticates the phone with the
+  pairing key and has no concept of a user.
+- **No access token and no refresh token are kept.** The app calls no API that
+  would accept one, and `offline_access` is not requested.
+- **Signing out erases it**, and "Delete everything" takes it too.
+
+It also means a third party — Auth0 — knows that an account exists and when it
+signed in. That is a real change from "no third party is involved", and it is
+why this is a choice rather than a step in setup. See `docs/AUTH.md`.
+
+Nothing about this touches the people being filmed: a clip is still a date, a
+ground and a ball number, with no names attached to anybody on the field.
 
 ---
 
@@ -171,6 +192,7 @@ than merely different, and it is a Phase 3 problem, not a privacy one.
 | Who | Can see | How |
 |---|---|---|
 | The umpire holding the phone | The last 12 clips, the decision log | The app |
+| Auth0, if the umpire signs in | That an account exists and when it authenticated. No footage, no match data, no decisions | `docs/AUTH.md` |
 | Another phone on the vest's access point | Nothing | Every request is HMAC-signed; an unsigned one is refused |
 | Anyone with physical access to an unlocked phone | The last 12 clips | Device lock is the control |
 | The league | The decision log, if exported | Phase 8, opt-in |

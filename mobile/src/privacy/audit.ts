@@ -34,7 +34,9 @@ export type AuditEventType =
   | 'privacy.notice.shown'
   | 'privacy.wipe.all'
   | 'pairing.stored'
-  | 'pairing.forgotten';
+  | 'pairing.forgotten'
+  | 'auth.signed_in'
+  | 'auth.signed_out';
 
 export async function audit(
   type: AuditEventType,

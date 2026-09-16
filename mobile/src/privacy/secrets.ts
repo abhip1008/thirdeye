@@ -3,8 +3,8 @@ import * as SecureStore from 'expo-secure-store';
 import { log } from '@/lib/log';
 
 /**
- * The pairing payload contains the vest's Wi-Fi passphrase and, once Phase 6
- * lands, a request-signing key. Those are the only real secrets the app holds
+ * The pairing payload contains the vest's Wi-Fi passphrase and a request-signing
+ * key, and signing in adds an identity. Those are the only real secrets the app holds
  * and they live in the platform keystore, not in SQLite and not in the Zustand
  * store, so they are not in a database backup and not in a state dump.
  *
@@ -15,6 +15,7 @@ import { log } from '@/lib/log';
 
 const KEY_WIFI_PASSWORD = 'thirdeye.vest.wifi_password';
 const KEY_REQUEST_PSK = 'thirdeye.vest.request_psk';
+const KEY_IDENTITY = 'thirdeye.identity';
 
 const available = async (): Promise<boolean> => {
   try {
@@ -47,10 +48,27 @@ export const secrets = {
   getWifiPassword: () => get(KEY_WIFI_PASSWORD),
   setRequestPsk: (v: string | null) => put(KEY_REQUEST_PSK, v),
   getRequestPsk: () => get(KEY_REQUEST_PSK),
-  /** Called by "Forget this vest" and by the full data wipe. */
-  clearAll: async () => {
+  /** The signed-in identity, as JSON. In the keystore because it holds a name
+   *  and an email address, which is the only personal data this app has ever
+   *  stored - and it must not appear in a database backup or a state dump. */
+  setIdentity: (v: string | null) => put(KEY_IDENTITY, v),
+  getIdentity: () => get(KEY_IDENTITY),
+  /**
+   * Called by "Forget this vest". Deliberately leaves the identity alone:
+   * forgetting a vest and signing out are different intentions, and coupling
+   * them means an umpire who re-pairs at a new ground is quietly signed out too.
+   */
+  clearPairing: async () => {
     await put(KEY_WIFI_PASSWORD, null);
     await put(KEY_REQUEST_PSK, null);
     log.warn('secrets', 'pairing secrets cleared');
+  },
+
+  /** Called by "Delete everything". Leaves nothing, identity included. */
+  clearAll: async () => {
+    await put(KEY_WIFI_PASSWORD, null);
+    await put(KEY_REQUEST_PSK, null);
+    await put(KEY_IDENTITY, null);
+    log.warn('secrets', 'all secrets cleared');
   },
 };
