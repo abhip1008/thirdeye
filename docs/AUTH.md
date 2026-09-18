@@ -45,8 +45,13 @@ The sign-in screen says exactly this rather than implying an upgrade.
    thirdeye://auth
    ```
 
-   In Expo Go during development the scheme is different — run the app and read
-   the URI the sign-in attempt reports, then add that too.
+   **Do not type this from memory.** Open the app, go to Settings → Account, and
+   the sign-in screen prints the exact callback URL it will send. Copy that. A
+   mismatch produces an Auth0 error reading "Callback URL mismatch", which never
+   says what the app actually asked for, and it is the commonest way this fails.
+
+   The value differs between a development build and Expo Go, which is the other
+   half of why the screen shows it rather than the documentation asserting it.
 
 3. Put the domain and client ID in `mobile/app.json`:
 

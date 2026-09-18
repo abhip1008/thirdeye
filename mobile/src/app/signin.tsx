@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Header } from '@/components/Header';
 import { auth0Configured } from '@/auth/config';
 import { Body, Button, Muted, Screen, Title } from '@/components/ui';
-import { useAuth } from '@/stores/authStore';
+import { redirectUri, useAuth } from '@/stores/authStore';
 import { colors } from '@/theme/colors';
 import { radius, space } from '@/theme/spacing';
 import { type } from '@/theme/typography';
@@ -88,11 +88,22 @@ export default function SignInScreen() {
         <View style={s.card}>
           <Body>Sign-in is not set up in this build.</Body>
           <Muted style={{ marginTop: space.xs }}>
-            An Auth0 domain and client ID need to go in app.json under expo.extra.auth0. See
-            docs/AUTH.md.
+            Add an Auth0 domain and client ID to app.json under expo.extra.auth0. Full steps
+            are in docs/AUTH.md.
           </Muted>
         </View>
       ) : null}
+
+      {/* Shown whether or not a tenant is configured, because a callback that
+          does not match is the commonest way this fails - and Auth0's error for
+          it says "Callback URL mismatch" without ever saying what was asked
+          for. This is what was asked for. */}
+      <View style={s.card}>
+        <Muted>Allowed Callback URL for the Auth0 application:</Muted>
+        <Text selectable style={[type.body, s.uri]}>
+          {redirectUri}
+        </Text>
+      </View>
 
       <View style={s.actions}>
         {identity ? (
@@ -133,5 +144,6 @@ const s = StyleSheet.create({
     marginTop: space.md,
   },
   error: { color: colors.danger, marginTop: space.lg },
+  uri: { color: colors.text, marginTop: space.xs, fontFamily: 'Menlo' },
   actions: { marginTop: space.xl, gap: space.md, paddingBottom: space.xl },
 });

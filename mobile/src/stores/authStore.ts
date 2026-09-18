@@ -51,7 +51,16 @@ interface AuthStore {
   isStale: () => boolean;
 }
 
-const redirectUri = AuthSession.makeRedirectUri({ scheme: 'thirdeye', path: 'auth' });
+/**
+ * Where Auth0 sends the browser back to.
+ *
+ * Exported because it has to be typed into the Auth0 dashboard, character for
+ * character, and a mismatch is the single most common way this fails to work -
+ * with an error message that says "Callback URL mismatch" and not what the app
+ * actually asked for. The sign-in screen shows this value so there is nothing
+ * to guess at.
+ */
+export const redirectUri = AuthSession.makeRedirectUri({ scheme: 'thirdeye', path: 'auth' });
 
 const asString = (value: unknown): string | null =>
   typeof value === 'string' && value.length > 0 ? value : null;
