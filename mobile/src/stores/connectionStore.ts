@@ -37,6 +37,8 @@ interface ConnectionStore {
   ringSize: number | null;
   /** Depth of the vest's rolling buffer. How long a queued marker stays usable. */
   bufferSeconds: number | null;
+  /** Seconds of run-up the vest adds to every cut. Its setting, not the phone's. */
+  prerollSeconds: number | null;
 
   health: HealthSnapshot | null;
   recording: boolean;
@@ -83,6 +85,7 @@ export const useConnection = create<ConnectionStore>((set, get) => ({
   umpireEnd: null,
   ringSize: null,
   bufferSeconds: null,
+  prerollSeconds: null,
   health: null,
   recording: false,
   lastMessageAt: null,
@@ -192,6 +195,7 @@ function handle(
         umpireEnd: message.end ?? null,
         ringSize: message.ring_size ?? null,
         bufferSeconds: message.buffer_seconds ?? null,
+        prerollSeconds: message.preroll_seconds ?? null,
         protocolMismatch: message.protocol > PROTOCOL_VERSION,
       });
       if (message.protocol > PROTOCOL_VERSION) {

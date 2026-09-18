@@ -94,3 +94,52 @@ describe('protocol v1 contract', () => {
     expect(() => parseServerMessage({ v: 2, type: 'from_the_future' })).not.toThrow();
   });
 });
+
+describe('what a clip announcement carries', () => {
+  /**
+   * The phone used to fill these in itself, with constants: 1920x1200, 60fps,
+   * h265. Those were the production sensor's mode and nothing else's, and the
+   * review screen steps frames with `fps` - so against a camera recording
+   * 1296x972 at 30, every press of "one frame" advanced half of one, and
+   * nothing anywhere could tell that the number was wrong.
+   *
+   * The vest measures them from the file it just wrote. It says them now.
+   */
+  const announcement = {
+    v: 1,
+    type: 'clip_ready',
+    seq: 4,
+    camera_id: 'vest-01',
+    bytes: 4463293,
+    sha256: 'a'.repeat(64),
+    duration_s: 10.6,
+    closed_by: 'button',
+    resolution: '1296x972',
+    fps: 30,
+    codec: 'h264',
+    preroll_s: 5,
+  };
+
+  it('carries what the vest measured', () => {
+    const parsed = parseServerMessage(announcement);
+    expect(parsed).not.toBeNull();
+    expect(parsed).toMatchObject({ resolution: '1296x972', fps: 30, codec: 'h264' });
+  });
+
+  it('still accepts an announcement from a vest too old to measure', () => {
+    // Unknown is a fine answer. A phone that rejected the message, or filled the
+    // gap with a plausible number, would both be worse.
+    const older = { ...announcement };
+    delete (older as Partial<typeof announcement>).resolution;
+    delete (older as Partial<typeof announcement>).fps;
+    delete (older as Partial<typeof announcement>).codec;
+    delete (older as Partial<typeof announcement>).preroll_s;
+    expect(parseServerMessage(older)).not.toBeNull();
+  });
+
+  it('carries the pre-roll the vest used, not a number the phone chose', () => {
+    // The phone has no say in this: the cut happens on the vest, with the vest's
+    // setting. A pre-roll dial on the phone was wired to nothing at all.
+    expect(parseServerMessage(announcement)).toMatchObject({ preroll_s: 5 });
+  });
+});

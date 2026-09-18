@@ -206,6 +206,20 @@ class Session:
                 "sha256": clip.meta.sha256,
                 "duration_s": clip.meta.duration_s,
                 "closed_by": closed_by,
+                # Measured from the file that was just written, not asserted
+                # from config. The phone used to fill these in with constants -
+                # 1920x1200 at 60 - which happened to be the production sensor's
+                # mode and nothing else's, and `fps` is what the review screen
+                # steps frames with. On 30fps footage that made every press half
+                # a frame.
+                "resolution": clip.meta.resolution,
+                "fps": clip.meta.fps,
+                "codec": clip.meta.codec,
+                # The vest's pre-roll, which is the one that happened. The phone
+                # has a pre-roll setting of its own and it does not reach the
+                # cut; recording it as though it did made the clip record
+                # disagree with the clip.
+                "preroll_s": clip.meta.preroll_s,
             }
         )
         for gone in self.store.purge():

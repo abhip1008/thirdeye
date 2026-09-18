@@ -15,7 +15,6 @@ export const defaults = {
   ringSize: 12,
 
   /** Seconds of run-up pulled from the vest ring buffer before the START press. */
-  prerollSeconds: 3,
 
   /**
    * Auto-close a clip after this long with no END press. Spec 7.6 argues 40

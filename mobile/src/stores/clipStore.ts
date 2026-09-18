@@ -81,11 +81,18 @@ export const useClips = create<ClipStore>((set, get) => ({
       started_at: now - m.duration_s,
       ended_at: now,
       duration_s: m.duration_s,
-      preroll_s: useSettings.getState().prerollSeconds,
+      /* Measured by the vest from the file it just wrote, and null when the
+         vest is too old to say. These used to be constants here - 1920x1200 at
+         60, h265 - which were the production sensor's mode and nothing else's.
+         `fps` is what the review screen steps frames with, so on a camera
+         recording 30 that made every press of "one frame" advance half of one.
+         A null is honest and the player corrects it on first play; a confident
+         wrong number never gets corrected because nothing knows it is wrong. */
+      preroll_s: m.preroll_s ?? 0,
       closed_by: m.closed_by,
-      resolution: '1920x1200',
-      fps: 60,
-      codec: 'h265',
+      resolution: m.resolution ?? null,
+      fps: m.fps ?? null,
+      codec: m.codec ?? null,
       bytes: m.bytes,
       sha256: m.sha256,
       over,

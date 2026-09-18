@@ -63,9 +63,9 @@ class ClipMeta(BaseModel):
     duration_s: float
     preroll_s: float = Field(..., description="Seconds of ring buffer prepended before the START press.")
     closed_by: ClosedBy
-    resolution: str = Field(..., description="WxH, e.g. 1920x1200.")
-    fps: float
-    codec: str
+    resolution: str | None = Field(..., description="Measured from the file, and null when it could not be measured. Not defaulted to a plausible value: a wrong frame rate is a stepping control that lies, and nothing downstream can tell it is wrong.")
+    fps: float | None = Field(..., description="Measured from the file, and null when it could not be measured. Not defaulted to a plausible value: a wrong frame rate is a stepping control that lies, and nothing downstream can tell it is wrong.")
+    codec: str | None = Field(..., description="Measured from the file, and null when it could not be measured. Not defaulted to a plausible value: a wrong frame rate is a stepping control that lies, and nothing downstream can tell it is wrong.")
     bytes: int
     sha256: str = Field(..., description="Lowercase hex of the review-copy file. The phone must verify this before committing.")
     over: int | None = Field(..., description="Nullable: the vest does not know the score. The phone fills it in.")
@@ -98,6 +98,7 @@ class HelloMessage(BaseModel):
     end: UmpireEnd | None = Field(default=None)
     ring_size: int | None = Field(default=None, description="How many clips the vest holds. The phone mirrors this rather than hardcoding 12.")
     buffer_seconds: int | None = Field(default=None, description="Depth of the rolling capture buffer. Anything within this window can still be cut, which is what makes a marker queued during a Wi-Fi outage recoverable.")
+    preroll_seconds: float | None = Field(default=None, description="Seconds of run-up the vest adds before every marker. The vest's setting, not the phone's - the phone cannot change it and should show this rather than a control of its own.")
 
 
 class ClipReadyMessage(BaseModel):
@@ -111,6 +112,10 @@ class ClipReadyMessage(BaseModel):
     sha256: str
     duration_s: float
     closed_by: ClosedBy
+    resolution: str | None = Field(default=None, description="Measured from the file the vest just wrote, e.g. 1296x972. Absent from vests built before this field existed.")
+    fps: float | None = Field(default=None, description="Measured frame rate. The review screen steps frames with this, so a guess here is a stepping control that lies.")
+    codec: str | None = Field(default=None, description="Measured codec, e.g. h264.")
+    preroll_s: float | None = Field(default=None, description="Seconds of run-up the vest actually included, which is the vest's setting and not the phone's.")
 
 
 class ClipExpiredMessage(BaseModel):

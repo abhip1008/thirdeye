@@ -66,10 +66,12 @@ export interface ClipMeta {
   /** Seconds of ring buffer prepended before the START press. */
   preroll_s: number;
   closed_by: ClosedBy;
-  /** WxH, e.g. 1920x1200. */
-  resolution: string;
-  fps: number;
-  codec: string;
+  /** Measured from the file, and null when it could not be measured. Not defaulted to a plausible value: a wrong frame rate is a stepping control that lies, and nothing downstream can tell it is wrong. */
+  resolution: string | null;
+  /** Measured from the file, and null when it could not be measured. Not defaulted to a plausible value: a wrong frame rate is a stepping control that lies, and nothing downstream can tell it is wrong. */
+  fps: number | null;
+  /** Measured from the file, and null when it could not be measured. Not defaulted to a plausible value: a wrong frame rate is a stepping control that lies, and nothing downstream can tell it is wrong. */
+  codec: string | null;
   bytes: number;
   /** Lowercase hex of the review-copy file. The phone must verify this before committing. */
   sha256: string;
@@ -107,6 +109,8 @@ export interface HelloMessage {
   ring_size?: number;
   /** Depth of the rolling capture buffer. Anything within this window can still be cut, which is what makes a marker queued during a Wi-Fi outage recoverable. */
   buffer_seconds?: number;
+  /** Seconds of run-up the vest adds before every marker. The vest's setting, not the phone's - the phone cannot change it and should show this rather than a control of its own. */
+  preroll_seconds?: number | null;
 }
 
 
@@ -119,6 +123,14 @@ export interface ClipReadyMessage {
   sha256: string;
   duration_s: number;
   closed_by: ClosedBy;
+  /** Measured from the file the vest just wrote, e.g. 1296x972. Absent from vests built before this field existed. */
+  resolution?: string | null;
+  /** Measured frame rate. The review screen steps frames with this, so a guess here is a stepping control that lies. */
+  fps?: number | null;
+  /** Measured codec, e.g. h264. */
+  codec?: string | null;
+  /** Seconds of run-up the vest actually included, which is the vest's setting and not the phone's. */
+  preroll_s?: number | null;
 }
 
 

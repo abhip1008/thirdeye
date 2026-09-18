@@ -5,6 +5,9 @@ import { PROTOCOL_VERSION } from '@/types/protocol';
 
 import { MOCK_CLIP } from './sampleClip';
 
+/** What the pretend vest would have been configured with. */
+const MOCK_PREROLL_SECONDS = 5;
+
 export interface MockTransportOptions {
   /**
    * Seconds between deliveries when nobody is tapping. Zero means the vest sits
@@ -214,6 +217,16 @@ export class MockTransport implements Transport {
       sha256: fakeHash(seq),
       duration_s: Number(durationS.toFixed(2)),
       closed_by: closedBy,
+      // The mock knows exactly what its own sample file is, and the whole point
+      // of that file is proving frame stepping is exact. Leaving these out would
+      // send the review screen to a fallback rate on the one clip whose rate is
+      // certain.
+      resolution: `${MOCK_CLIP.width}x${MOCK_CLIP.height}`,
+      fps: MOCK_CLIP.fps,
+      codec: 'h264',
+      // A pretend vest has a pretend pre-roll, and it is the vest's number
+      // either way - the phone's setting never reaches a cut.
+      preroll_s: MOCK_PREROLL_SECONDS,
     });
   }
 

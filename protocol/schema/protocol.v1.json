@@ -8,280 +8,721 @@
     "ClosedBy": {
       "type": "string",
       "description": "How a clip stopped recording. Drives a badge on the clip row.",
-      "enum": ["button", "timeout", "recovered", "manual"]
+      "enum": [
+        "button",
+        "timeout",
+        "recovered",
+        "manual"
+      ]
     },
     "ClipStatus": {
       "type": "string",
       "description": "Phone-local lifecycle of a clip. The vest never sees this.",
-      "enum": ["announced", "downloading", "verifying", "ready", "failed", "expired"]
+      "enum": [
+        "announced",
+        "downloading",
+        "verifying",
+        "ready",
+        "failed",
+        "expired"
+      ]
     },
     "SessionState": {
       "type": "string",
       "description": "Vest capture state machine, see spec 7.6.",
-      "enum": ["idle", "recording"]
+      "enum": [
+        "idle",
+        "recording"
+      ]
     },
     "ConnectionState": {
       "type": "string",
       "description": "Phone-local view of the control channel.",
-      "enum": ["disconnected", "connecting", "connected", "reconnecting"]
+      "enum": [
+        "disconnected",
+        "connecting",
+        "connected",
+        "reconnecting"
+      ]
     },
     "UmpireEnd": {
       "type": "string",
       "description": "Which end the vest is standing at. One vest in v1; the field exists so a second unit needs no protocol change.",
-      "enum": ["bowlers", "square_leg"]
+      "enum": [
+        "bowlers",
+        "square_leg"
+      ]
     },
     "MarkEdge": {
       "type": "string",
       "description": "Which edge of a delivery a marker represents. The umpire marks the start and the end from the app; the vest cuts the clip out of its rolling buffer afterwards.",
-      "enum": ["start", "end"]
+      "enum": [
+        "start",
+        "end"
+      ]
     },
     "RefusalReason": {
       "type": "string",
       "description": "Why the vest could not use a marker. Every value is something the phone can explain to the umpire, because a tap that produced nothing and said nothing is the failure this whole design exists to avoid.",
-      "enum": ["no_match", "too_old", "buffer_miss", "cut_failed"]
+      "enum": [
+        "no_match",
+        "too_old",
+        "buffer_miss",
+        "cut_failed"
+      ]
     },
     "PinReason": {
       "type": "string",
       "description": "Why a clip is exempt from auto-purge. Free-text is not allowed: pin reasons end up in an audit log and must be enumerable.",
-      "enum": ["wicket", "review", "no_ball", "incident", "other"]
+      "enum": [
+        "wicket",
+        "review",
+        "no_ball",
+        "incident",
+        "other"
+      ]
     },
     "AppealType": {
       "type": "string",
-      "enum": ["lbw", "caught", "runout", "stumping", "noball", "other"]
+      "enum": [
+        "lbw",
+        "caught",
+        "runout",
+        "stumping",
+        "noball",
+        "other"
+      ]
     },
     "Decision": {
       "type": "string",
-      "enum": ["out", "not_out", "inconclusive"]
+      "enum": [
+        "out",
+        "not_out",
+        "inconclusive"
+      ]
     },
     "ClipMeta": {
       "type": "object",
       "description": "The sidecar the vest writes next to every clip, and the payload of GET /api/clips.",
       "additionalProperties": false,
       "required": [
-        "v", "match_id", "camera_id", "seq", "started_at", "ended_at",
-        "duration_s", "preroll_s", "closed_by", "resolution", "fps",
-        "codec", "bytes", "sha256", "over", "ball_in_over", "legal"
+        "v",
+        "match_id",
+        "camera_id",
+        "seq",
+        "started_at",
+        "ended_at",
+        "duration_s",
+        "preroll_s",
+        "closed_by",
+        "resolution",
+        "fps",
+        "codec",
+        "bytes",
+        "sha256",
+        "over",
+        "ball_in_over",
+        "legal"
       ],
       "properties": {
-        "v": { "type": "integer", "description": "Protocol version this object was written by." },
-        "match_id": { "type": "string", "description": "Opaque match identifier minted by the vest. Contains no personal data." },
-        "camera_id": { "type": "string", "description": "Stable id of the vest unit. Present from v1 so a second unit is additive." },
-        "seq": { "type": "integer", "description": "Monotonic delivery counter. Wides and no-balls get their own seq." },
-        "started_at": { "type": "number", "description": "Unix seconds, vest clock, including pre-roll." },
-        "ended_at": { "type": "number", "description": "Unix seconds, vest clock." },
-        "duration_s": { "type": "number" },
-        "preroll_s": { "type": "number", "description": "Seconds of ring buffer prepended before the START press." },
-        "closed_by": { "$ref": "#/$defs/ClosedBy" },
-        "resolution": { "type": "string", "description": "WxH, e.g. 1920x1200." },
-        "fps": { "type": "number" },
-        "codec": { "type": "string" },
-        "bytes": { "type": "integer" },
-        "sha256": { "type": "string", "description": "Lowercase hex of the review-copy file. The phone must verify this before committing." },
-        "over": { "type": ["integer", "null"], "description": "Nullable: the vest does not know the score. The phone fills it in." },
-        "ball_in_over": { "type": ["integer", "null"] },
-        "legal": { "type": "boolean", "description": "False for a wide or a no-ball." }
+        "v": {
+          "type": "integer",
+          "description": "Protocol version this object was written by."
+        },
+        "match_id": {
+          "type": "string",
+          "description": "Opaque match identifier minted by the vest. Contains no personal data."
+        },
+        "camera_id": {
+          "type": "string",
+          "description": "Stable id of the vest unit. Present from v1 so a second unit is additive."
+        },
+        "seq": {
+          "type": "integer",
+          "description": "Monotonic delivery counter. Wides and no-balls get their own seq."
+        },
+        "started_at": {
+          "type": "number",
+          "description": "Unix seconds, vest clock, including pre-roll."
+        },
+        "ended_at": {
+          "type": "number",
+          "description": "Unix seconds, vest clock."
+        },
+        "duration_s": {
+          "type": "number"
+        },
+        "preroll_s": {
+          "type": "number",
+          "description": "Seconds of ring buffer prepended before the START press."
+        },
+        "closed_by": {
+          "$ref": "#/$defs/ClosedBy"
+        },
+        "resolution": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Measured from the file, and null when it could not be measured. Not defaulted to a plausible value: a wrong frame rate is a stepping control that lies, and nothing downstream can tell it is wrong."
+        },
+        "fps": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Measured from the file, and null when it could not be measured. Not defaulted to a plausible value: a wrong frame rate is a stepping control that lies, and nothing downstream can tell it is wrong."
+        },
+        "codec": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Measured from the file, and null when it could not be measured. Not defaulted to a plausible value: a wrong frame rate is a stepping control that lies, and nothing downstream can tell it is wrong."
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string",
+          "description": "Lowercase hex of the review-copy file. The phone must verify this before committing."
+        },
+        "over": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Nullable: the vest does not know the score. The phone fills it in."
+        },
+        "ball_in_over": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "legal": {
+          "type": "boolean",
+          "description": "False for a wide or a no-ball."
+        }
       }
     },
     "HealthSnapshot": {
       "type": "object",
       "description": "Vest telemetry. Deliberately carries no video and no identifiers beyond camera_id.",
       "additionalProperties": false,
-      "required": ["battery_pct", "temp_c", "disk_free_gb", "encoder_fps", "clips_held", "buffer_held_s"],
+      "required": [
+        "battery_pct",
+        "temp_c",
+        "disk_free_gb",
+        "encoder_fps",
+        "clips_held",
+        "buffer_held_s"
+      ],
       "properties": {
-        "battery_pct": { "type": "number" },
-        "temp_c": { "type": "number" },
-        "disk_free_gb": { "type": "number" },
-        "encoder_fps": { "type": "number", "description": "Measured, not configured. A silent drop here is the worst failure mode in the system." },
-        "clips_held": { "type": "integer" },
-        "buffer_held_s": { "type": "number", "description": "How many seconds of footage are currently recoverable from the rolling buffer. A marker older than this can no longer be cut, which is the one thing the phone needs to know before promising the umpire a clip." }
+        "battery_pct": {
+          "type": "number"
+        },
+        "temp_c": {
+          "type": "number"
+        },
+        "disk_free_gb": {
+          "type": "number"
+        },
+        "encoder_fps": {
+          "type": "number",
+          "description": "Measured, not configured. A silent drop here is the worst failure mode in the system."
+        },
+        "clips_held": {
+          "type": "integer"
+        },
+        "buffer_held_s": {
+          "type": "number",
+          "description": "How many seconds of footage are currently recoverable from the rolling buffer. A marker older than this can no longer be cut, which is the one thing the phone needs to know before promising the umpire a clip."
+        }
       }
     },
     "HelloMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["v", "type", "camera_id", "match_id", "seq_latest", "protocol", "firmware"],
+      "required": [
+        "v",
+        "type",
+        "camera_id",
+        "match_id",
+        "seq_latest",
+        "protocol",
+        "firmware"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "hello" },
-        "camera_id": { "type": "string" },
-        "match_id": { "type": ["string", "null"] },
-        "seq_latest": { "type": "integer" },
-        "protocol": { "type": "integer", "description": "Highest protocol version the vest speaks. The phone refuses to pair on a major mismatch." },
-        "firmware": { "type": "string" },
-        "end": { "$ref": "#/$defs/UmpireEnd" },
-        "ring_size": { "type": "integer", "description": "How many clips the vest holds. The phone mirrors this rather than hardcoding 12." },
-        "buffer_seconds": { "type": "integer", "description": "Depth of the rolling capture buffer. Anything within this window can still be cut, which is what makes a marker queued during a Wi-Fi outage recoverable." }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "hello"
+        },
+        "camera_id": {
+          "type": "string"
+        },
+        "match_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "seq_latest": {
+          "type": "integer"
+        },
+        "protocol": {
+          "type": "integer",
+          "description": "Highest protocol version the vest speaks. The phone refuses to pair on a major mismatch."
+        },
+        "firmware": {
+          "type": "string"
+        },
+        "end": {
+          "$ref": "#/$defs/UmpireEnd"
+        },
+        "ring_size": {
+          "type": "integer",
+          "description": "How many clips the vest holds. The phone mirrors this rather than hardcoding 12."
+        },
+        "buffer_seconds": {
+          "type": "integer",
+          "description": "Depth of the rolling capture buffer. Anything within this window can still be cut, which is what makes a marker queued during a Wi-Fi outage recoverable."
+        },
+        "preroll_seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Seconds of run-up the vest adds before every marker. The vest's setting, not the phone's - the phone cannot change it and should show this rather than a control of its own."
+        }
       }
     },
     "ClipReadyMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["v", "type", "seq", "camera_id", "bytes", "sha256", "duration_s", "closed_by"],
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "camera_id",
+        "bytes",
+        "sha256",
+        "duration_s",
+        "closed_by"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "clip_ready" },
-        "seq": { "type": "integer" },
-        "camera_id": { "type": "string" },
-        "bytes": { "type": "integer" },
-        "sha256": { "type": "string" },
-        "duration_s": { "type": "number" },
-        "closed_by": { "$ref": "#/$defs/ClosedBy" }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "clip_ready"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "camera_id": {
+          "type": "string"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "duration_s": {
+          "type": "number"
+        },
+        "closed_by": {
+          "$ref": "#/$defs/ClosedBy"
+        },
+        "resolution": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Measured from the file the vest just wrote, e.g. 1296x972. Absent from vests built before this field existed."
+        },
+        "fps": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Measured frame rate. The review screen steps frames with this, so a guess here is a stepping control that lies."
+        },
+        "codec": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Measured codec, e.g. h264."
+        },
+        "preroll_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Seconds of run-up the vest actually included, which is the vest's setting and not the phone's."
+        }
       }
     },
     "ClipExpiredMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["v", "type", "seq", "camera_id"],
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "camera_id"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "clip_expired" },
-        "seq": { "type": "integer" },
-        "camera_id": { "type": "string" }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "clip_expired"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "camera_id": {
+          "type": "string"
+        }
       }
     },
     "MarkerRefusedMessage": {
       "type": "object",
       "description": "A marker arrived and produced no clip.\n\nThe vest used to drop these silently. That is the worst thing it can do: the umpire taps, nothing appears, and there is nothing anywhere to say why. Refusing out loud lets the phone put a reason on screen and decide whether to try again.",
       "additionalProperties": false,
-      "required": ["v", "type", "seq", "edge", "reason"],
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "edge",
+        "reason"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "marker_refused" },
-        "seq": { "type": "integer" },
-        "edge": { "$ref": "#/$defs/MarkEdge" },
-        "reason": { "$ref": "#/$defs/RefusalReason" },
-        "detail": { "type": ["string", "null"], "description": "Free text for the diagnostics screen. Never shown to the umpire." }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "marker_refused"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "edge": {
+          "$ref": "#/$defs/MarkEdge"
+        },
+        "reason": {
+          "$ref": "#/$defs/RefusalReason"
+        },
+        "detail": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Free text for the diagnostics screen. Never shown to the umpire."
+        }
       }
     },
     "SessionStateMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["v", "type", "state", "seq", "since", "camera_id"],
+      "required": [
+        "v",
+        "type",
+        "state",
+        "seq",
+        "since",
+        "camera_id"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "session_state" },
-        "camera_id": { "type": "string" },
-        "state": { "$ref": "#/$defs/SessionState" },
-        "seq": { "type": "integer" },
-        "since": { "type": "number" }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "session_state"
+        },
+        "camera_id": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/SessionState"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "since": {
+          "type": "number"
+        }
       }
     },
     "StatusMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["v", "type", "camera_id", "health"],
+      "required": [
+        "v",
+        "type",
+        "camera_id",
+        "health"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "status" },
-        "camera_id": { "type": "string" },
-        "health": { "$ref": "#/$defs/HealthSnapshot" }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "status"
+        },
+        "camera_id": {
+          "type": "string"
+        },
+        "health": {
+          "$ref": "#/$defs/HealthSnapshot"
+        }
       }
     },
     "PongMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["v", "type", "t"],
+      "required": [
+        "v",
+        "type",
+        "t"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "pong" },
-        "t": { "type": "number", "description": "Echo of the client ping timestamp, for RTT." },
-        "vest_time": { "type": "number", "description": "The vest's own clock at the moment it replied. With the round trip from `t`, the phone estimates the offset between the two clocks and stamps every marker in vest time - so the vest never has to track a per-client offset of its own." }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "pong"
+        },
+        "t": {
+          "type": "number",
+          "description": "Echo of the client ping timestamp, for RTT."
+        },
+        "vest_time": {
+          "type": "number",
+          "description": "The vest's own clock at the moment it replied. With the round trip from `t`, the phone estimates the offset between the two clocks and stamps every marker in vest time - so the vest never has to track a per-client offset of its own."
+        }
       }
     },
     "AckMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["v", "type", "seq", "sha256"],
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "sha256"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "ack" },
-        "seq": { "type": "integer" },
-        "sha256": { "type": "string" }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "ack"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
       }
     },
     "PinMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["v", "type", "seq", "pinned", "reason"],
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "pinned",
+        "reason"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "pin" },
-        "seq": { "type": "integer" },
-        "pinned": { "type": "boolean" },
-        "reason": { "$ref": "#/$defs/PinReason" }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "pin"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "reason": {
+          "$ref": "#/$defs/PinReason"
+        }
       }
     },
     "MarkMessage": {
       "type": "object",
       "description": "The umpire marked the start or the end of a delivery. Replaces the BLE remote: the control now lives in the app, next to the footage.\n\nA marker is not a trigger. The vest records continuously, so this only says which part of the buffer to keep. That is what lets a marker queued during a Wi-Fi outage still produce a clip once the link returns - the footage was never conditional on the message arriving.",
       "additionalProperties": false,
-      "required": ["v", "type", "seq", "edge", "at"],
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "edge",
+        "at"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "mark" },
-        "seq": { "type": "integer", "description": "Delivery number. Minted by the phone, which is now the thing that counts deliveries." },
-        "edge": { "$ref": "#/$defs/MarkEdge" },
-        "at": { "type": "number", "description": "Unix seconds in the VEST's clock, already offset-corrected by the phone. See `vest_time` on the pong message." },
-        "queued": { "type": "boolean", "description": "True when this marker was held on the phone during an outage and is being replayed. The vest treats it identically; the flag exists so a late clip can be explained rather than looking like a fault." }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "mark"
+        },
+        "seq": {
+          "type": "integer",
+          "description": "Delivery number. Minted by the phone, which is now the thing that counts deliveries."
+        },
+        "edge": {
+          "$ref": "#/$defs/MarkEdge"
+        },
+        "at": {
+          "type": "number",
+          "description": "Unix seconds in the VEST's clock, already offset-corrected by the phone. See `vest_time` on the pong message."
+        },
+        "queued": {
+          "type": "boolean",
+          "description": "True when this marker was held on the phone during an outage and is being replayed. The vest treats it identically; the flag exists so a late clip can be explained rather than looking like a fault."
+        }
       }
     },
     "PingMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["v", "type", "t"],
+      "required": [
+        "v",
+        "type",
+        "t"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "ping" },
-        "t": { "type": "number" }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "ping"
+        },
+        "t": {
+          "type": "number"
+        }
       }
     },
     "ResyncMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["v", "type", "since_seq"],
+      "required": [
+        "v",
+        "type",
+        "since_seq"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "type": { "const": "resync" },
-        "since_seq": { "type": "integer", "description": "Highest seq the phone has committed. The vest replays everything after it that is still held." }
+        "v": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "resync"
+        },
+        "since_seq": {
+          "type": "integer",
+          "description": "Highest seq the phone has committed. The vest replays everything after it that is still held."
+        }
       }
     },
     "ServerMessage": {
       "description": "Vest to phone. Unknown types are ignored, never an error, so either side upgrades independently.",
       "x-discriminator": "type",
       "oneOf": [
-        { "$ref": "#/$defs/HelloMessage" },
-        { "$ref": "#/$defs/ClipReadyMessage" },
-        { "$ref": "#/$defs/ClipExpiredMessage" },
-        { "$ref": "#/$defs/SessionStateMessage" },
-        { "$ref": "#/$defs/MarkerRefusedMessage" },
-        { "$ref": "#/$defs/StatusMessage" },
-        { "$ref": "#/$defs/PongMessage" }
+        {
+          "$ref": "#/$defs/HelloMessage"
+        },
+        {
+          "$ref": "#/$defs/ClipReadyMessage"
+        },
+        {
+          "$ref": "#/$defs/ClipExpiredMessage"
+        },
+        {
+          "$ref": "#/$defs/SessionStateMessage"
+        },
+        {
+          "$ref": "#/$defs/MarkerRefusedMessage"
+        },
+        {
+          "$ref": "#/$defs/StatusMessage"
+        },
+        {
+          "$ref": "#/$defs/PongMessage"
+        }
       ]
     },
     "ClientMessage": {
       "description": "Phone to vest.",
       "x-discriminator": "type",
       "oneOf": [
-        { "$ref": "#/$defs/AckMessage" },
-        { "$ref": "#/$defs/PinMessage" },
-        { "$ref": "#/$defs/MarkMessage" },
-        { "$ref": "#/$defs/PingMessage" },
-        { "$ref": "#/$defs/ResyncMessage" }
+        {
+          "$ref": "#/$defs/AckMessage"
+        },
+        {
+          "$ref": "#/$defs/PinMessage"
+        },
+        {
+          "$ref": "#/$defs/MarkMessage"
+        },
+        {
+          "$ref": "#/$defs/PingMessage"
+        },
+        {
+          "$ref": "#/$defs/ResyncMessage"
+        }
       ]
     },
     "PairingPayload": {
       "type": "object",
       "description": "The contents of the QR code on the vest. Scanned once per season, not per match.",
       "additionalProperties": false,
-      "required": ["v", "ssid", "password", "host", "camera_id"],
+      "required": [
+        "v",
+        "ssid",
+        "password",
+        "host",
+        "camera_id"
+      ],
       "properties": {
-        "v": { "type": "integer" },
-        "ssid": { "type": "string" },
-        "password": { "type": "string", "description": "WPA2 passphrase for the vest AP. Secret: never logged, never rendered, never synced." },
-        "host": { "type": "string", "description": "e.g. 192.168.43.1" },
-        "camera_id": { "type": "string" },
-        "psk": { "type": ["string", "null"], "description": "Optional 32-byte hex shared secret. When present the phone HMACs every request so another phone on the same AP cannot pull clips. See docs/THREAT_MODEL.md." },
-        "end": { "$ref": "#/$defs/UmpireEnd" }
+        "v": {
+          "type": "integer"
+        },
+        "ssid": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string",
+          "description": "WPA2 passphrase for the vest AP. Secret: never logged, never rendered, never synced."
+        },
+        "host": {
+          "type": "string",
+          "description": "e.g. 192.168.43.1"
+        },
+        "camera_id": {
+          "type": "string"
+        },
+        "psk": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Optional 32-byte hex shared secret. When present the phone HMACs every request so another phone on the same AP cannot pull clips. See docs/THREAT_MODEL.md."
+        },
+        "end": {
+          "$ref": "#/$defs/UmpireEnd"
+        }
       }
     }
   }

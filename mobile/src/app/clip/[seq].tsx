@@ -596,7 +596,7 @@ function Option({ label, selected, onPress }: { label: string; selected: boolean
 }
 
 /** `1920x1200` to 1.6. Falls back to the vest camera's shape when unknown. */
-function aspectOf(resolution: string | undefined): number {
+function aspectOf(resolution: string | null | undefined): number {
   const match = /^(\d+)x(\d+)$/.exec(resolution ?? '');
   if (!match) return 16 / 10;
   const width = Number(match[1]);

@@ -7,7 +7,6 @@ import { log } from '@/lib/log';
 export type MockSpeed = 'manual' | 'fast' | 'realistic';
 
 export interface Settings {
-  prerollSeconds: number;
   timeoutSeconds: number;
   ringSize: number;
   pinRetentionDays: number;
@@ -21,7 +20,6 @@ export interface Settings {
 }
 
 const INITIAL: Settings = {
-  prerollSeconds: defaults.prerollSeconds,
   timeoutSeconds: defaults.timeoutSeconds,
   ringSize: defaults.ringSize,
   pinRetentionDays: defaults.pinRetentionDays,

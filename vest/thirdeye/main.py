@@ -272,6 +272,10 @@ def _hello_payload() -> dict[str, Any]:
         "end": "bowlers",
         "ring_size": settings.ring_size,
         "buffer_seconds": int(settings.buffer_seconds),
+        # The phone shows this rather than offering a control of its own. The
+        # cut happens here, with this number; a pre-roll dial on the phone was
+        # connected to nothing and said otherwise.
+        "preroll_seconds": settings.preroll_s_effective,
     }
 
 

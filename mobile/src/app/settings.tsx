@@ -18,6 +18,7 @@ import { clearFootage, footageBytes, importFootage, listFootage } from '@/privac
 import { purgeEverything } from '@/privacy/retention';
 import { totalBytesHeld } from '@/privacy/storage';
 import { useClips } from '@/stores/clipStore';
+import { useConnection } from '@/stores/connectionStore';
 import { useMatch } from '@/stores/matchStore';
 import { usePairing } from '@/stores/pairingStore';
 import { useAuth } from '@/stores/authStore';
@@ -47,6 +48,7 @@ export default function SettingsScreen() {
   const pairing = usePairing();
   const clips = useClips((s) => s.clips);
   const match = useMatch((s) => s.match);
+  const preroll = useConnection((s) => s.prerollSeconds);
 
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [storageToken, setStorageToken] = useState(0);
@@ -141,13 +143,10 @@ export default function SettingsScreen() {
 
       <SectionLabel>Recording</SectionLabel>
       <Card>
-        <Preset
+        <SettingRow
           label="Pre-roll"
-          hint="Seconds pulled from before the START press, so a late press still catches the run-up."
-          value={settings.prerollSeconds}
-          options={[2, 3, 5]}
-          format={(v) => `${v}s`}
-          onChange={(v) => void settings.set('prerollSeconds', v)}
+          hint="Seconds of run-up added before every tap, so a late press still catches the bowler coming in. Set on the vest, because that is where the cut happens."
+          value={preroll === null ? 'ask the vest' : `${preroll}s`}
         />
         <Preset
           label="Auto-close"
