@@ -116,13 +116,37 @@ def require_signature(request: Request) -> None:
         )
 
 
+def board_temperature() -> float | None:
+    """The SoC temperature, where the kernel exposes one.
+
+    A vest is an insulated box worn in the sun, and temperature is what throttles
+    first - the encoder slows, frames are dropped, and nothing else says why.
+    Absent on a laptop, which is what the None is for.
+    """
+    try:
+        raw = Path("/sys/class/thermal/thermal_zone0/temp").read_text().strip()
+    except OSError:
+        return None
+    try:
+        return round(int(raw) / 1000, 1)
+    except ValueError:
+        return None
+
+
 def health() -> dict[str, Any]:
     """What the phone shows in the corner, and what a support call starts from."""
     root = settings.data_root.parent if settings.data_root.parent.exists() else Path("/")
     _, _, free = shutil.disk_usage(root)
     return {
-        "battery_pct": 100.0,          # No battery gauge off the vest hardware yet.
-        "temp_c": 0.0,                 # Same: read from the thermal zone in Phase 2.
+        # Null, not 100. There is no gauge on this hardware, and a vest running
+        # off a battery pack reporting a confident full charge is the worst lie
+        # available - it is the one number somebody checks before walking out.
+        "battery_pct": None,
+        "temp_c": board_temperature(),
+        # Whether footage is reaching the disk, not whether a process exists.
+        # The phone cannot see the vest, so this is the only way an umpire
+        # learns the camera stopped before a tap produces nothing.
+        "recording": recorder.running,
         "disk_free_gb": round(free / 1e9, 1),
         # Probed from the last clip written, not read back from config. Zero
         # until the first clip is cut, and zero again if the recorder has died.

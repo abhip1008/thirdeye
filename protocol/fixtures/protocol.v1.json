@@ -67,7 +67,8 @@
         "disk_free_gb": 180,
         "encoder_fps": 59.9,
         "clips_held": 12,
-        "buffer_held_s": 300.0
+        "buffer_held_s": 300.0,
+        "recording": true
       }
     },
     {

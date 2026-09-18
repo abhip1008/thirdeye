@@ -107,6 +107,14 @@ export default function LiveScreen() {
 
   const ready = useMemo(() => clips.filter((c) => c.status === 'ready').length, [clips]);
 
+  /* Connected to a vest that is not recording.
+     In a vest the Pi is out of sight and out of reach, so the only place this
+     can show up is here. Without it the first sign is a tap that produces
+     nothing, several balls after the camera actually stopped - and by then the
+     footage those balls needed is gone. A green dot beside a camera that is not
+     running is the same lie the vest itself used to tell. */
+  const notRecording = state === 'connected' && health?.recording === false;
+
   if (!match) {
     return (
       <Screen>
@@ -137,7 +145,7 @@ export default function LiveScreen() {
           onPress={() => router.push('/diagnostics')}
           accessibilityRole="button"
           accessibilityLabel={
-            health
+            typeof health?.battery_pct === 'number'
               ? `Link ${state}. Vest battery ${Math.round(health.battery_pct)} percent. Diagnostics.`
               : `Link ${state}. Diagnostics.`
           }
@@ -145,7 +153,9 @@ export default function LiveScreen() {
           style={({ pressed }) => [s.link, pressed && { opacity: 0.5 }]}
         >
           <View style={[s.dot, { backgroundColor: linkTint }]} />
-          {health ? <VestBattery percent={health.battery_pct} /> : null}
+          {typeof health?.battery_pct === 'number' ? (
+            <VestBattery percent={health.battery_pct} />
+          ) : null}
         </Pressable>
 
         <Pressable
@@ -164,6 +174,17 @@ export default function LiveScreen() {
           {ready === 0 ? 'Nothing yet' : `${ready} ready`}
         </Text>
       </View>
+
+      {notRecording ? (
+        <View style={s.alarm}>
+          <Text style={[type.body, { color: colors.textOnDark }]}>
+            The vest is not recording
+          </Text>
+          <Text style={[type.caption, { color: colors.textOnDark, marginTop: 2 }]}>
+            Taps will not produce clips. Check the camera.
+          </Text>
+        </View>
+      ) : null}
 
       <FlatList
         data={clips}
@@ -270,6 +291,11 @@ const s = StyleSheet.create({
   battery: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   dot: { width: 9, height: 9, borderRadius: 5 },
 
+  alarm: {
+    backgroundColor: colors.danger,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+  },
   listHead: { paddingTop: space.xl, paddingBottom: space.md },
   list: { flex: 1 },
   listEmpty: { flexGrow: 1 },

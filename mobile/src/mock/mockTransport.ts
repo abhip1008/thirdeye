@@ -241,6 +241,9 @@ export class MockTransport implements Transport {
         temp_c: Number((48 + Math.random() * 6).toFixed(1)),
         disk_free_gb: 181,
         encoder_fps: Number((MOCK_CLIP.fps - Math.random() * 0.4).toFixed(1)),
+        // A pretend vest that pretends to record. The alarm on the live screen
+        // is for a real one that has stopped.
+        recording: true,
         clips_held: Math.min(12, this.seq),
         buffer_held_s: this.opts.bufferSeconds,
       },

@@ -216,14 +216,23 @@
         "disk_free_gb",
         "encoder_fps",
         "clips_held",
-        "buffer_held_s"
+        "buffer_held_s",
+        "recording"
       ],
       "properties": {
         "battery_pct": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Null when the vest has no gauge. Not 100: a fabricated full battery on a vest running off one is the worst possible lie."
         },
         "temp_c": {
-          "type": "number"
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Board temperature, or null where it cannot be read. A vest is an insulated box in the sun and this is what throttles first."
         },
         "disk_free_gb": {
           "type": "number"
@@ -238,6 +247,13 @@
         "buffer_held_s": {
           "type": "number",
           "description": "How many seconds of footage are currently recoverable from the rolling buffer. A marker older than this can no longer be cut, which is the one thing the phone needs to know before promising the umpire a clip."
+        },
+        "recording": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Whether footage is actually reaching the disk - not whether a process exists. The phone cannot see the vest, so this is the only way an umpire learns the camera has stopped before a tap produces nothing."
         }
       }
     },

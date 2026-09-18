@@ -84,14 +84,18 @@ export interface ClipMeta {
 
 /** Vest telemetry. Deliberately carries no video and no identifiers beyond camera_id. */
 export interface HealthSnapshot {
-  battery_pct: number;
-  temp_c: number;
+  /** Null when the vest has no gauge. Not 100: a fabricated full battery on a vest running off one is the worst possible lie. */
+  battery_pct: number | null;
+  /** Board temperature, or null where it cannot be read. A vest is an insulated box in the sun and this is what throttles first. */
+  temp_c: number | null;
   disk_free_gb: number;
   /** Measured, not configured. A silent drop here is the worst failure mode in the system. */
   encoder_fps: number;
   clips_held: number;
   /** How many seconds of footage are currently recoverable from the rolling buffer. A marker older than this can no longer be cut, which is the one thing the phone needs to know before promising the umpire a clip. */
   buffer_held_s: number;
+  /** Whether footage is actually reaching the disk - not whether a process exists. The phone cannot see the vest, so this is the only way an umpire learns the camera has stopped before a tap produces nothing. */
+  recording: boolean | null;
 }
 
 

@@ -77,12 +77,13 @@ class HealthSnapshot(BaseModel):
     """Vest telemetry. Deliberately carries no video and no identifiers beyond camera_id."""
     model_config = ConfigDict(extra="forbid")
 
-    battery_pct: float
-    temp_c: float
+    battery_pct: float | None = Field(..., description="Null when the vest has no gauge. Not 100: a fabricated full battery on a vest running off one is the worst possible lie.")
+    temp_c: float | None = Field(..., description="Board temperature, or null where it cannot be read. A vest is an insulated box in the sun and this is what throttles first.")
     disk_free_gb: float
     encoder_fps: float = Field(..., description="Measured, not configured. A silent drop here is the worst failure mode in the system.")
     clips_held: int
     buffer_held_s: float = Field(..., description="How many seconds of footage are currently recoverable from the rolling buffer. A marker older than this can no longer be cut, which is the one thing the phone needs to know before promising the umpire a clip.")
+    recording: bool | None = Field(..., description="Whether footage is actually reaching the disk - not whether a process exists. The phone cannot see the vest, so this is the only way an umpire learns the camera has stopped before a tap produces nothing.")
 
 
 class HelloMessage(BaseModel):
