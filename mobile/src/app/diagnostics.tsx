@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Header } from '@/components/Header';
-import { Button, Muted, Screen, SectionLabel, SettingRow } from '@/components/ui';
+import { Button, Card, Muted, Screen, SectionLabel, SettingRow } from '@/components/ui';
 import { LogEntry, log } from '@/lib/log';
 import { AuditRow, recentAudit } from '@/privacy/audit';
 import { useConnection } from '@/stores/connectionStore';
@@ -36,12 +36,19 @@ export default function DiagnosticsScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={{ paddingTop: space.lg }}>
           <SectionLabel>Link</SectionLabel>
+          <Card>
           <SettingRow label="State" value={connection.state} />
           <SettingRow label="Transport" value={connection.transportName ?? '—'} />
           <SettingRow label="Vest" value={connection.cameraId ?? '—'} />
           <SettingRow label="Firmware" value={connection.firmware ?? '—'} />
-          <SettingRow label="Protocol" value={connection.vestProtocol ? `v${connection.vestProtocol}` : '—'} />
-          <SettingRow label="Round trip" value={connection.rttMs !== null ? `${connection.rttMs} ms` : '—'} />
+          <SettingRow
+            label="Protocol"
+            value={connection.vestProtocol ? `v${connection.vestProtocol}` : '—'}
+          />
+          <SettingRow
+            label="Round trip"
+            value={connection.rttMs !== null ? `${connection.rttMs} ms` : '—'}
+          />
           <SettingRow
             label="Clock offset"
             hint="Applied to every delivery marker, so the vest gets its own time."
@@ -59,9 +66,19 @@ export default function DiagnosticsScreen() {
           />
           <SettingRow
             label="Markers refused"
-            hint={connection.lastRefusal ? `Last: ${connection.lastRefusal}` : 'Taps the vest could not turn into a clip, since the last one that arrived.'}
+            hint={
+              connection.lastRefusal
+                ? `Last: ${connection.lastRefusal}`
+                : 'Taps the vest could not turn into a clip, since the last one that arrived.'
+            }
             value={String(connection.refused)}
           />
+          <SettingRow
+            label="Pre-roll"
+            hint="Run-up the vest adds to every cut. Its setting, not this phone's."
+            value={connection.prerollSeconds !== null ? `${connection.prerollSeconds} s` : '—'}
+          />
+          </Card>
           {connection.protocolMismatch && (
             <Muted style={{ color: colors.danger }}>
               The vest speaks a newer protocol than this build. Update the app.
