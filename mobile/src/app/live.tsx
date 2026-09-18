@@ -5,6 +5,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import Svg, { Rect } from 'react-native-svg';
 
 import { ClipRow } from '@/components/ClipRow';
+import { defaults } from '@/config/appConfig';
 import { EmptyState, Screen } from '@/components/ui';
 import { MockDownloader } from '@/mock/mockDownloader';
 import { MockTransport } from '@/mock/mockTransport';
@@ -83,7 +84,7 @@ export default function LiveScreen() {
     const host = pairing.host;
     if (!host) return;
 
-    const transport: Transport = new WebSocketTransport(host);
+    const transport: Transport = new WebSocketTransport(host, defaults.reconnectBackoffMs);
     setDownloader(new HttpDownloader(host));
     // The vest refuses markers outside a match, so tell it one has begun before
     // the umpire can tap anything. If it is unreachable the taps still queue.

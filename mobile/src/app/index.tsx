@@ -6,6 +6,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Body, Button, Field, Muted, Screen, Title } from '@/components/ui';
 import { log } from '@/lib/log';
 import { useMatch } from '@/stores/matchStore';
+import { vestHealth } from '@/net/vestApi';
+import { withPort } from '@/net/address';
 import { isSigningKey, parsePairingQr, usePairing } from '@/stores/pairingStore';
 import { useSettings } from '@/stores/settingsStore';
 import { colors } from '@/theme/colors';
@@ -30,6 +32,7 @@ export default function PairScreen() {
   const [cameraId, setCameraId] = useState('vest-01');
   const [psk, setPsk] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const handled = useRef(false);
 
   useEffect(() => {
@@ -73,6 +76,23 @@ export default function PairScreen() {
       setError('The key is 64 letters and numbers. Check it against the vest.');
       return;
     }
+    /* Ask the vest whether it is there, before saying the pairing worked.
+
+       Health is the one unsigned route, so this works before any key is
+       stored - and a wrong address is by far the commonest thing to get wrong
+       here. Without this the app pairs happily, shows a grey dot on the live
+       screen, and leaves an umpire to work out whether the problem is the
+       address, the key, the network or a vest that is switched off. */
+    setChecking(true);
+    const saved = withPort(host.trim());
+    const health = await vestHealth(saved);
+    setChecking(false);
+
+    if (!health) {
+      setError(`Nothing answered at ${saved}. Check the address and that you are on the vest's network.`);
+      return;
+    }
+
     await pairing.saveManual(host.trim(), cameraId.trim() || 'vest-01', psk.trim() || null);
     proceed();
   };
@@ -135,7 +155,11 @@ export default function PairScreen() {
 
       <View style={s.actions}>
         {mode === 'manual' ? (
-          <Button label="Pair" onPress={() => void onManual()} />
+          <Button
+            label={checking ? 'Looking for the vest…' : 'Pair'}
+            onPress={() => void onManual()}
+            disabled={checking}
+          />
         ) : (
           <Button label="Continue without scanning" onPress={proceed} variant="secondary" />
         )}

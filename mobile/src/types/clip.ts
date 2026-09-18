@@ -53,9 +53,4 @@ export interface Review {
   notes: string | null;
 }
 
-/** Identity of a clip. Three parts, because v2 adds a second camera. */
-export interface ClipKey {
-  matchId: string;
-  cameraId: string;
-  seq: number;
-}
+

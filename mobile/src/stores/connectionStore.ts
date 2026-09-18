@@ -110,6 +110,28 @@ export const useConnection = create<ConnectionStore>((set, get) => ({
 
     heartbeat = setInterval(() => {
       if (get().state !== 'connected') return;
+
+      /* A socket that is open is not a vest that is answering. When a vest
+         loses power, or the phone walks out of range, TCP can hold the
+         connection open for minutes before it admits anything is wrong - and
+         for all of those minutes the pill says connected and the umpire has no
+         reason to doubt it. The heartbeat is what makes that detectable: three
+         missed pongs and the link is reported down, whatever the socket thinks.
+
+         Same shape as the vest's own recording check. A thing existing is not
+         the thing working. */
+      const last = get().lastMessageAt;
+      const silenceMs = defaults.heartbeatSeconds * defaults.missedPongsBeforeDown * 1000;
+      if (last !== null && Date.now() - last > silenceMs) {
+        log.warn('link', `no answer from the vest for ${Math.round((Date.now() - last) / 1000)}s`);
+        set({ state: 'reconnecting', recording: false });
+        // Tear it down so the transport's own reconnect takes over rather than
+        // waiting on a socket that will not admit it is finished.
+        active?.disconnect();
+        active?.connect();
+        return;
+      }
+
       active?.send({ v: PROTOCOL_VERSION, type: 'ping', t: Date.now() / 1000 });
     }, defaults.heartbeatSeconds * 1000);
 
