@@ -1,7 +1,19 @@
 [Unit]
 Description=Third Eye vest
-After=network-online.target
-Wants=network-online.target
+
+# Ordering only, and deliberately not network-online.target.
+#
+# `Wants=network-online.target` pulls in NetworkManager-wait-online, which waits
+# for connectivity - and a vest has none by design: its access point has no
+# uplink and never will. On a headless unit that is up to a minute of systemd
+# waiting for the internet before the camera is allowed to start, which is a
+# minute of cricket that was never recorded, at the one moment nobody can log in
+# and find out why.
+#
+# Nothing here needs the network to come up. The recorder wants a camera and a
+# disk; uvicorn binds the wildcard address whether or not an interface exists
+# yet, and starts answering the moment the radio appears.
+After=network.target
 
 [Service]
 Type=simple
@@ -27,7 +39,8 @@ RestartSec=2
 # while somebody walks over to look at it.
 StartLimitIntervalSec=0
 
-# The recorder is the one thing that must not be starved.
+# The recorder is the one thing that must not be starved. A vest that boots
+# into a busy first minute still has to be capturing during it.
 Nice=-5
 IOSchedulingClass=best-effort
 IOSchedulingPriority=2

@@ -152,6 +152,53 @@ blur on a large screen, keeping a session to compare two camera settings, or
 handing footage to somebody who is not holding the phone. `--seq` takes just one
 delivery, repeatably.
 
+## Unattended: what happens when you switch it on
+
+Once `setup-pi.sh` and `setup-hotspot.sh` have each been run **once**, there is
+nothing to type on the vest again. Sealed into a vest, on a battery, with no
+keyboard and no screen, this is the whole sequence:
+
+| # | What | Needs |
+|---|---|---|
+| 1 | Pi boots | power |
+| 2 | NetworkManager brings up `thirdeye-vest-01` — `autoconnect yes`, so it returns on every boot | the radio |
+| 3 | systemd starts `thirdeye.service` — enabled, so no command | nothing |
+| 4 | The recorder starts, the buffer begins filling | the camera |
+| 5 | The phone joins the vest's Wi-Fi, which it remembers after the first time | — |
+| 6 | The app reconnects with its stored key, and `hello` tells it the vest has no match, so **the app starts one itself** | — |
+| 7 | Tap. Clip. | — |
+
+Steps 3 and 4 do not wait for step 2. The unit is ordered `After=network.target`
+rather than `network-online.target` on purpose: waiting for connectivity a vest
+does not have would keep the camera off for up to a minute after power-on, and
+that is a minute of cricket nobody recorded.
+
+### When something goes wrong, with nobody able to log in
+
+The phone is the only diagnostic an umpire has, so every failure has to reach it.
+
+| What fails | What the umpire sees | What the vest does |
+|---|---|---|
+| The camera does not start, or stops | **Red banner: "The vest is not recording"** | Watchdog restarts the pipeline, backing off to 30s while it keeps failing. Never gives up. |
+| The service crashes | Link dot goes amber, then green again | systemd restarts it in 2s, forever - `StartLimitIntervalSec=0` means it cannot decide to stay down |
+| The vest loses power, or goes out of range | Link dot amber within 15s, taps queue to disk | Nothing. The taps are sent when it returns. |
+| A tap lands outside the buffer | "made no clip - the vest had already recorded over it" | Refuses honestly rather than cutting the wrong ten seconds |
+| The camera runs but the buffer stalls | Red banner within 10s | Same watchdog. This is the failure that used to be invisible. |
+
+Nothing in that table needs a terminal.
+
+### What is still on a person
+
+- **Battery.** There is no gauge on this hardware, so the app shows none - better
+  than the confident 100% it used to invent. Use a power bank with its own
+  indicator, and charge it between matches.
+- **The clock.** No RTC battery means the Pi boots believing it is whenever it
+  was last switched off. With no internet that is self-consistent and harmless
+  apart from the date on a folder name. Give it internet mid-match and NTP will
+  jump the clock, which empties the buffer in one janitor pass. Fit the battery.
+- **Storage.** The buffer is bounded and the clip ring is twelve, but match
+  folders accumulate. Worth a look between seasons.
+
 ### The clock
 
 A Pi has no real-time clock unless you fit the battery, and at a ground it has
