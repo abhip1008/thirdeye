@@ -1,9 +1,18 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Header } from '@/components/Header';
-import { Button, Choice, Divider, Muted, Screen, SectionLabel, SettingRow } from '@/components/ui';
+import {
+  Button,
+  Card,
+  Choice,
+  Muted,
+  Screen,
+  SectionLabel,
+  SettingRow,
+  ToggleRow,
+} from '@/components/ui';
 import { megabytes } from '@/lib/format';
 import { clearFootage, footageBytes, importFootage, listFootage } from '@/privacy/footage';
 import { purgeEverything } from '@/privacy/retention';
@@ -19,12 +28,17 @@ import { type } from '@/theme/typography';
 import { PROTOCOL_VERSION } from '@/types/protocol';
 
 /**
- * Settings, with the privacy panel first.
+ * Settings, grouped by who is asking.
  *
  * "What is on this phone" sits at the top rather than in an About page because
  * it is the answer to the only question anyone outside the project ever asks,
  * and an umpire should be able to get to it while someone is standing in front
  * of them.
+ *
+ * Below that, the order is: things an umpire changes, then the vest they are
+ * paired to, then developer tools, then the things that delete. The mock vest
+ * and the footage importer used to sit in the middle of the umpire's settings,
+ * which made a screen for running a match read like a workbench.
  */
 export default function SettingsScreen() {
   const router = useRouter();
@@ -67,7 +81,7 @@ export default function SettingsScreen() {
 
       <View style={s.privacy}>
         <SectionLabel>What is on this phone</SectionLabel>
-        <Text style={[type.body, { color: colors.text }]}>
+        <Text style={[type.title, { color: colors.text }]}>
           {clips.length} clip{clips.length === 1 ? '' : 's'} · {megabytes(bytes)}
         </Text>
         <Muted style={{ marginTop: space.xs }}>
@@ -87,208 +101,211 @@ export default function SettingsScreen() {
         />
       </View>
 
+      <SectionLabel>Account</SectionLabel>
+      <View style={s.account}>
+        {auth.identity ? (
+          <>
+            <Text style={[type.body, { color: colors.text }]}>
+              {auth.identity.name ?? auth.identity.email ?? 'Signed in'}
+            </Text>
+            {auth.identity.email && auth.identity.name ? (
+              <Muted style={{ marginTop: space.xs }}>{auth.identity.email}</Muted>
+            ) : null}
+            <Muted style={{ marginTop: space.sm }}>
+              {auth.isStale()
+                ? 'Past its expiry, which changes nothing. Third Eye has simply not been able to check in recently.'
+                : 'Third Eye works signed out too. Nothing on any screen is locked.'}
+            </Muted>
+            <Button
+              label="Manage account"
+              variant="secondary"
+              onPress={() => router.push('/signin')}
+              style={{ marginTop: space.lg }}
+            />
+          </>
+        ) : (
+          <>
+            <Text style={[type.body, { color: colors.text }]}>Not signed in</Text>
+            <Muted style={{ marginTop: space.xs }}>
+              Optional. Everything works without it — and signing in needs internet, which the
+              vest&apos;s own network does not have.
+            </Muted>
+            <Button
+              label="Sign in"
+              onPress={() => router.push('/signin')}
+              style={{ marginTop: space.lg }}
+            />
+          </>
+        )}
+      </View>
+
       <SectionLabel>Recording</SectionLabel>
-      <Preset
-        label="Pre-roll"
-        hint="Seconds pulled from before the START press, so a late press still catches the run-up."
-        value={settings.prerollSeconds}
-        options={[2, 3, 5]}
-        suffix="s"
-        onChange={(v) => void settings.set('prerollSeconds', v)}
-      />
-      <Preset
-        label="Auto-close"
-        hint="How long a clip runs with no END press. 40s covers a run-out and three runs."
-        value={settings.timeoutSeconds}
-        options={[25, 40, 60]}
-        suffix="s"
-        onChange={(v) => void settings.set('timeoutSeconds', v)}
-      />
+      <Card>
+        <Preset
+          label="Pre-roll"
+          hint="Seconds pulled from before the START press, so a late press still catches the run-up."
+          value={settings.prerollSeconds}
+          options={[2, 3, 5]}
+          format={(v) => `${v}s`}
+          onChange={(v) => void settings.set('prerollSeconds', v)}
+        />
+        <Preset
+          label="Auto-close"
+          hint="How long a clip runs with no END press. 40s covers a run-out and three runs."
+          value={settings.timeoutSeconds}
+          options={[25, 40, 60]}
+          format={(v) => `${v}s`}
+          onChange={(v) => void settings.set('timeoutSeconds', v)}
+        />
+      </Card>
 
       <SectionLabel>Retention</SectionLabel>
-      <Preset
-        label="Balls kept"
-        hint="Older clips are deleted from this phone as soon as the ring rolls."
-        value={settings.ringSize}
-        options={[6, 12, 24]}
-        onChange={(v) => void settings.set('ringSize', v)}
-      />
-      <Preset
-        label="Keep pinned for"
-        hint="A pin buys a clip time, not permanence. It expires on its own."
-        value={settings.pinRetentionDays}
-        options={[1, 7, 30]}
-        suffix=" days"
-        onChange={(v) => void settings.set('pinRetentionDays', v)}
-      />
-      <SettingRow
-        label="Block screenshots"
-        hint="Stops a clip escaping the retention rules through a camera roll."
-      />
-      <View style={s.switchRow}>
-        <Switch
+      <Card>
+        <Preset
+          label="Balls kept"
+          hint="Older clips are deleted from this phone as soon as the ring rolls."
+          value={settings.ringSize}
+          options={[6, 12, 24]}
+          format={(v) => `${v} balls`}
+          onChange={(v) => void settings.set('ringSize', v)}
+        />
+        <Preset
+          label="Keep pinned for"
+          hint="A pin buys a clip time, not permanence. It expires on its own."
+          value={settings.pinRetentionDays}
+          options={[1, 7, 30]}
+          format={(v) => (v === 1 ? '1 day' : `${v} days`)}
+          onChange={(v) => void settings.set('pinRetentionDays', v)}
+        />
+        <ToggleRow
+          label="Block screenshots"
+          hint="Stops a clip escaping the retention rules through a camera roll."
           value={settings.screenGuard}
           onValueChange={(v) => void settings.set('screenGuard', v)}
-          accessibilityLabel="Block screenshots"
         />
-      </View>
-
-      <Divider />
-
-      <SectionLabel>Account</SectionLabel>
-      <SettingRow
-        label={auth.identity ? (auth.identity.name ?? auth.identity.email ?? 'Signed in') : 'Sign in'}
-        value={auth.identity ? (auth.isStale() ? 'expired' : 'signed in') : 'optional'}
-        hint={
-          auth.identity
-            ? 'Third Eye works signed out too. Nothing on any screen is locked.'
-            : 'Optional, and needs internet — which the vest\u2019s own network does not have.'
-        }
-        onPress={() => router.push('/signin')}
-      />
-
-      <Divider />
+      </Card>
 
       <SectionLabel>Vest</SectionLabel>
-      <SettingRow label="Address" value={pairing.host ?? 'not paired'} />
-      <SettingRow label="Name" value={pairing.cameraId ?? '—'} />
-      <SettingRow label="Protocol" value={`v${PROTOCOL_VERSION}`} />
-      <SettingRow
-        label="Forget this vest"
-        hint="Clears the address and the stored Wi-Fi passphrase."
-        onPress={() => void pairing.forget()}
-      />
+      <Card>
+        <SettingRow label="Address" value={pairing.host ?? 'not paired'} />
+        <SettingRow label="Name" value={pairing.cameraId ?? '—'} />
+        <SettingRow label="Protocol" value={`v${PROTOCOL_VERSION}`} />
+        <SettingRow
+          label="Forget this vest"
+          hint="Clears the address, the Wi-Fi passphrase and the signing key. Does not sign you out."
+          onPress={() => void pairing.forget()}
+        />
+      </Card>
 
-      <Divider />
-
-      <SectionLabel>Mock vest</SectionLabel>
-      <Muted style={{ marginBottom: space.md }}>
-        The mock vest answers your taps and cuts clips out of a pretend buffer, so the whole loop
-        works before a camera exists. It drops about one delivery in twelve on purpose, so the grey
-        dot is something you have seen before it matters.
-      </Muted>
-      <Muted style={{ marginBottom: space.md }}>
-        Turn it off to talk to a real vest at {pairing.host ?? 'the paired address'} instead. The
-        app is the same either way; only what is behind the link changes.
-      </Muted>
-      <SettingRow label="Mock vest running" />
-      <View style={s.switchRow}>
-        <Switch
+      <SectionLabel>Developer</SectionLabel>
+      <Card>
+        <ToggleRow
+          label="Mock vest"
+          hint="Answers your taps and cuts clips from a pretend buffer, so the whole loop works without hardware. Drops about one delivery in twelve on purpose."
           value={settings.mockEnabled}
           onValueChange={(v) => void settings.set('mockEnabled', v)}
-          accessibilityLabel="Mock vest running"
         />
-      </View>
-      <View style={{ marginTop: space.md, marginBottom: space.xl }}>
-        <Choice<MockSpeed>
-          value={settings.mockSpeed}
-          onChange={(v) => void settings.set('mockSpeed', v)}
-          options={[
-            { value: 'manual', label: 'You tap' },
-            { value: 'fast', label: 'Auto 10s' },
-            { value: 'realistic', label: 'Auto 40s' },
-          ]}
+        {settings.mockEnabled ? (
+          <View style={s.inset}>
+            <Choice<MockSpeed>
+              value={settings.mockSpeed}
+              onChange={(v) => void settings.set('mockSpeed', v)}
+              options={[
+                { value: 'manual', label: 'You tap' },
+                { value: 'fast', label: 'Auto 10s' },
+                { value: 'realistic', label: 'Auto 40s' },
+              ]}
+            />
+            <Muted style={{ marginTop: space.sm }}>
+              Auto modes bowl on a timer, for showing someone a full over without tapping through
+              it.
+            </Muted>
+          </View>
+        ) : null}
+        <SettingRow
+          label={footage.length > 0 ? 'Imported videos' : 'Your own footage'}
+          value={footage.length > 0 ? `${footage.length} · ${megabytes(footageSize)}` : undefined}
+          hint="The bundled clip is a test pattern. Import a video and every delivery plays it instead."
         />
-        <Muted style={{ marginTop: space.sm }}>
-          Auto modes bowl on a timer, for showing someone a full over without tapping through it.
-        </Muted>
-      </View>
-
-      <Divider />
-
-      <SectionLabel>Your own footage</SectionLabel>
-      <Muted style={{ marginBottom: space.md }}>
-        The bundled clip is a test pattern - right for checking that frame stepping is exact, and
-        useless for the question that decides whether this works at all: is the impact zone even in
-        shot from an umpire&apos;s chest? Import a video and every delivery plays it instead.
-      </Muted>
-      <SettingRow
-        label={footage.length > 0 ? 'Imported videos' : 'No videos imported'}
-        value={footage.length > 0 ? `${footage.length} · ${megabytes(footageSize)}` : undefined}
-        hint={
-          footage.length > 1
-            ? 'Deliveries cycle through them, so consecutive balls do not look identical.'
-            : undefined
-        }
-      />
-      <Button
-        label="Add a video"
-        variant="secondary"
-        onPress={() =>
-          void importFootage().then((r) => {
-            setStorageToken((n) => n + 1);
-            setImportNote(
-              r.error
-                ? `Could not import: ${r.error}`
-                : r.cancelled
-                  ? null
-                  : `Imported ${r.imported} video${r.imported === 1 ? '' : 's'}. The next ball will use it.`
-            );
-          })
-        }
-        style={{ marginTop: space.sm }}
-      />
-      {footage.length > 0 && (
-        <Button
-          label="Remove imported videos"
-          variant="ghost"
-          onPress={() => {
-            const removed = clearFootage();
-            setStorageToken((n) => n + 1);
-            setImportNote(`Removed ${removed}. Back to the test pattern.`);
-          }}
-          style={{ marginTop: space.xs }}
+        <View style={s.inset}>
+          <Button
+            label="Add a video"
+            variant="secondary"
+            onPress={() =>
+              void importFootage().then((r) => {
+                setStorageToken((n) => n + 1);
+                setImportNote(
+                  r.error
+                    ? `Could not import: ${r.error}`
+                    : r.cancelled
+                      ? null
+                      : `Imported ${r.imported} video${r.imported === 1 ? '' : 's'}. The next ball will use it.`
+                );
+              })
+            }
+          />
+          {footage.length > 0 && (
+            <Button
+              label="Remove imported videos"
+              variant="ghost"
+              onPress={() => {
+                const removed = clearFootage();
+                setStorageToken((n) => n + 1);
+                setImportNote(`Removed ${removed}. Back to the test pattern.`);
+              }}
+              style={{ marginTop: space.xs }}
+            />
+          )}
+          {importNote ? <Muted style={{ marginTop: space.sm }}>{importNote}</Muted> : null}
+        </View>
+        <SettingRow
+          label="Diagnostics"
+          hint="Message log, audit trail, link detail."
+          onPress={() => router.push('/diagnostics')}
         />
-      )}
-      {importNote ? <Muted style={{ marginTop: space.sm }}>{importNote}</Muted> : null}
-      <Muted style={{ marginTop: space.sm, marginBottom: space.lg }}>
-        Chosen through the system file picker, one file at a time, so the app never needs access to
-        your photo library. Imports are stored like clips are: app-private, kept out of the platform
-        backup, and removed by &ldquo;Delete all data&rdquo; below.
-      </Muted>
-
-      <SettingRow
-        label="Diagnostics"
-        hint="Message log, audit trail, link detail."
-        onPress={() => router.push('/diagnostics')}
-      />
-
-      <Divider />
+      </Card>
 
       <SectionLabel>Delete</SectionLabel>
-      {match && (
-        <SettingRow
-          label="Delete clips from this match"
-          hint="Keeps the match record and the decision log."
-          onPress={() => void useClips.getState().sweep()}
-        />
-      )}
-      {confirmWipe ? (
-        <View style={s.confirm}>
-          <Text style={[type.body, { color: colors.text }]}>
-            This deletes every clip, every match, every decision and the paired vest. It cannot be
-            undone.
-          </Text>
-          <View style={s.confirmRow}>
-            <Button label="Delete everything" variant="danger" onPress={() => void wipe()} style={{ flex: 1 }} />
-            <Button
-              label="Cancel"
-              variant="secondary"
-              onPress={() => setConfirmWipe(false)}
-              style={{ flex: 1 }}
-            />
+      <Card>
+        {match ? (
+          <SettingRow
+            label="Delete clips from this match"
+            hint="Keeps the match record and the decision log."
+            onPress={() => void useClips.getState().sweep()}
+          />
+        ) : null}
+        {confirmWipe ? (
+          <View style={s.confirm}>
+            <Text style={[type.body, { color: colors.text }]}>
+              This deletes every clip, every match, every decision, the paired vest and your
+              sign-in. It cannot be undone.
+            </Text>
+            <View style={s.confirmRow}>
+              <Button
+                label="Delete everything"
+                variant="danger"
+                onPress={() => void wipe()}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label="Cancel"
+                variant="secondary"
+                onPress={() => setConfirmWipe(false)}
+                style={{ flex: 1 }}
+              />
+            </View>
           </View>
-        </View>
-      ) : (
-        <SettingRow
-          label="Delete all data on this phone"
-          hint="Clips, matches, decisions, and the pairing."
-          destructive
-          onPress={() => setConfirmWipe(true)}
-        />
-      )}
+        ) : (
+          <SettingRow
+            label="Delete all data on this phone"
+            hint="Clips, matches, decisions, the pairing and your sign-in."
+            destructive
+            onPress={() => setConfirmWipe(true)}
+          />
+        )}
+      </Card>
 
-      <View style={{ height: space.xxxl }} />
+      <View style={{ height: space.xxl }} />
     </Screen>
   );
 }
@@ -298,29 +315,37 @@ function Preset({
   hint,
   value,
   options,
-  suffix = '',
+  format = (v) => String(v),
   onChange,
 }: {
   label: string;
   hint: string;
   value: number;
   options: number[];
-  suffix?: string;
+  /** How the number reads. A function, because "1 days" is not a unit. */
+  format?: (v: number) => string;
   onChange: (v: number) => void;
 }) {
   return (
     <View style={s.preset}>
-      <SettingRow label={label} hint={hint} value={`${value}${suffix}`} />
+      <SettingRow label={label} hint={hint} value={format(value)} />
       <Choice<string>
         value={String(value)}
         onChange={(v) => onChange(Number(v))}
-        options={options.map((o) => ({ value: String(o), label: `${o}${suffix}` }))}
+        options={options.map((o) => ({ value: String(o), label: format(o) }))}
       />
     </View>
   );
 }
 
 const s = StyleSheet.create({
+  account: {
+    padding: space.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    marginBottom: space.xl,
+  },
+  inset: { paddingBottom: space.lg },
   privacy: {
     marginTop: space.lg,
     marginBottom: space.xl,
@@ -328,7 +353,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.md,
   },
-  preset: { marginBottom: space.lg },
+  preset: { paddingBottom: space.lg },
   switchRow: { alignItems: 'flex-start', paddingBottom: space.lg },
   confirm: { paddingVertical: space.lg, gap: space.lg },
   confirmRow: { flexDirection: 'row', gap: space.md },

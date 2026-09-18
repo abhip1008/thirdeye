@@ -1,8 +1,9 @@
-import { ReactNode } from 'react';
+import { Children, isValidElement, type ReactNode } from 'react';
 import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TextStyle,
@@ -221,6 +222,13 @@ export function SettingRow({
         {hint ? <Muted style={{ marginTop: 2 }}>{hint}</Muted> : null}
       </View>
       {value ? <Text style={[type.numeralSmall, { color: colors.textMuted }]}>{value}</Text> : null}
+      {/* Only where tapping goes somewhere. A chevron on a row that does nothing
+          is a promise the row does not keep. */}
+      {onPress && !destructive ? (
+        <Text style={[type.body, s.chevron]} accessibilityElementsHidden>
+          ›
+        </Text>
+      ) : null}
     </View>
   );
   if (!onPress) return content;
@@ -236,6 +244,66 @@ export function SettingRow({
   );
 }
 
+/**
+ * A grouped card, the way a settings screen has looked on a phone for fifteen
+ * years: related rows inside one rounded block, hairlines between them, nothing
+ * between the groups but space.
+ *
+ * It exists because the alternative - a flat run of rows with the occasional
+ * divider - gives the eye no way to tell which heading a row belongs to, and
+ * the screen reads as one long list of unrelated switches.
+ *
+ * Separators are inserted here rather than by each row, so no call site has to
+ * know whether it is last.
+ */
+export function Card({ children }: { children: ReactNode }) {
+  const rows = Children.toArray(children).filter(isValidElement);
+  return (
+    <View style={s.card}>
+      {rows.map((row, index) => (
+        <View key={index} style={index > 0 ? s.cardRow : undefined}>
+          {row}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * A setting that is on or off, with the switch where a thumb expects it.
+ *
+ * The first version of this screen put the label in one row and the switch in
+ * the next, left-aligned underneath. It worked, and it looked like a form that
+ * had been assembled rather than designed - and worse, with several in a column
+ * it stopped being obvious which switch belonged to which label.
+ */
+export function ToggleRow({
+  label,
+  hint,
+  value,
+  onValueChange,
+}: {
+  label: string;
+  hint?: string;
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+}) {
+  return (
+    <View style={s.settingRow}>
+      <View style={s.settingText}>
+        <Text style={[type.body, { color: colors.text }]}>{label}</Text>
+        {hint ? <Muted style={{ marginTop: 2 }}>{hint}</Muted> : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        accessibilityLabel={label}
+        style={{ marginLeft: space.md }}
+      />
+    </View>
+  );
+}
+
 export function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <View style={s.empty}>
@@ -246,6 +314,15 @@ export function EmptyState({ title, body }: { title: string; body: string }) {
 }
 
 const s = StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    marginBottom: space.xl,
+    paddingHorizontal: space.lg,
+  },
+  cardRow: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.rule },
+  chevron: { color: colors.textMuted, marginLeft: space.sm },
   screen: { flex: 1, backgroundColor: colors.bg },
   screenBody: { flex: 1, paddingHorizontal: space.xl },
   scrollContent: { flexGrow: 1, paddingBottom: space.xxl },
