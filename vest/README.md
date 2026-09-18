@@ -135,6 +135,23 @@ appear on a phone it is not obvious whether the vest could not cut it or the app
 could not fetch it, and finding out which, in a car park, with a net session
 waiting, is how an afternoon goes. Everything this touches is the vest's side.
 
+### Getting clips onto a computer
+
+```bash
+./.venv/bin/python scripts/pull_clips.py --host 192.168.4.82:8000 \
+  --key <the psk> --out ~/Downloads/over1
+```
+
+Runs from anywhere that can reach the vest. Downloads every clip it is holding,
+checks each against the hash the vest announced, and refuses to write one that
+does not match - the same path the app uses, so a file that lands here is
+byte-identical to the one the vest cut.
+
+The app is how an umpire watches a clip. This is for judging framing and motion
+blur on a large screen, keeping a session to compare two camera settings, or
+handing footage to somebody who is not holding the phone. `--seq` takes just one
+delivery, repeatably.
+
 ### The clock
 
 A Pi has no real-time clock unless you fit the battery, and at a ground it has
