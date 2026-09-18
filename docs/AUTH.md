@@ -67,6 +67,26 @@ The sign-in screen says exactly this rather than implying an upgrade.
    Leaving them empty is supported: the sign-in screen then says the build has
    no tenant configured, rather than offering a button that cannot work.
 
+4. **Rebuild the app. Restarting Metro is not enough.**
+
+   ```bash
+   npx expo run:ios       # or run:android
+   ```
+
+   `expo-constants` freezes `extra` into the binary at build time - there is a
+   copy at `ThirdEye.app/EXConstants.bundle/app.config` - so a development build
+   keeps reading the values it was compiled with no matter how many times the
+   bundler restarts. The symptom is exact and misleading: the sign-in screen
+   goes on saying the build has no tenant while `npx expo config` on the same
+   machine prints the right one.
+
+   If you are ever unsure which the app is reading:
+
+   ```bash
+   cat ~/Library/Developer/Xcode/DerivedData/ThirdEye-*/Build/Products/\
+Debug-iphonesimulator/ThirdEye.app/EXConstants.bundle/app.config
+   ```
+
 There is no client secret. A public client on a phone cannot keep one, which is
 why the flow is **authorization code with PKCE** — the proof is generated per
 request instead of shipped inside the app.

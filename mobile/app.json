@@ -91,8 +91,8 @@
         "identity": "optional Auth0 sign-in; an email address, held in the keystore, never sent to the vest"
       },
       "auth0": {
-        "domain": "",
-        "clientId": ""
+        "domain": "dev-umxcdh2y62l4e0gy.us.auth0.com",
+        "clientId": "qsLzof7a3MLc8KC0QWxvD9AaEdEicwaT"
       }
     }
   }
