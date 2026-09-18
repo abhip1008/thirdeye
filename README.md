@@ -111,64 +111,49 @@ part that must not be rushed.
 
 ## Current status
 
-**Phase 1 is complete, and Phases 3 and 4 are built.** Phase 2 is the only one
-that needs hardware.
+**It runs on hardware.** A Raspberry Pi 5 with an OV5647 records continuously,
+cuts a clip when the phone marks a delivery, and delivers it to the app over a
+signed connection. That loop has been done end to end with a real sensor.
 
-The vest service is real - it records continuously, cuts clips out of its buffer
-when the phone marks a delivery, and serves them over HTTP with resume. The
-phone has a real WebSocket client and a real verifying downloader. **The only
-thing still pretending is where the pictures come from**: point
-`THIRDEYE_SOURCE` at a video file and the entire system runs on a laptop.
+The camera was the last fake and it is gone. What remains untested is not the
+software: it is whether a camera on someone's chest can actually see the ball.
 
-That is deliberate. The camera is the last fake to be removed, not the first, so
-everything downstream of it can be built and tested before any hardware is
-bought.
-
-### What is verified
+### What is verified, by running it
 
 | Check | Result |
 |---|---|
-| TypeScript, strict mode, unused locals and params on | 0 errors |
-| ESLint | clean |
-| Tests | 55 mobile, 34 vest, plus a 20-check end-to-end run |
-| Android production bundle | exports, sample clip included |
-| iOS production bundle | exports, sample clip included |
-| iOS app compiles for real | Xcode build of the generated project |
-| Built app's permission surface | iOS: camera and local network only. Android: camera, internet, network state, vibrate. Everything else blocked, and CI asserts it. |
-| Expo Router route discovery | all 8 routes found under `src/app` |
-| Protocol generator | TypeScript and Python regenerate byte-identical |
-| Golden fixture | parses on both sides; three malformed shapes rejected on both sides |
-| Sample clip | exactly 900 frames, 60 fps, 1920x1200 |
-| Vest `/api/health` | responds with the expected shape |
+| **The whole loop on hardware** | Pi records 1296×972 at 30, cuts on a marker, serves it; the app downloads, hash-verifies and commits it |
+| **The vest's own side, on real footage** | `check_clip.py`: 17 checks — signed requests, marker pair, download, length, SHA-256, resumed download reassembling byte for byte, ffprobe confirming playable video at the rate the review screen steps with |
+| **End to end with a file for a camera** | `smoke_test.py`: 30 checks, including a missed start recovered from the buffer and a marker past the buffer honestly refused |
+| **Request signing, against a live vest** | Accepted over HTTP and the control channel; unsigned refused on both; a replay refused; a signature moved to another path refused |
+| **Two clocks that disagree** | Signed 9,000s out: refused, the vest's clock came back, the phone adopted it and the retry was accepted — no intervention |
+| **Deletion after twelve balls** | 16 clips seeded on a device; the app's own sweep left the 12 newest plus one kept and one reviewed |
+| **The rolling buffer** | Fills to its 300-second depth and holds there, janitor trimming one segment a second |
+| Tests | 95 mobile, 68 vest |
+| TypeScript strict, ESLint | clean |
+| Both production bundles | export |
+| Built app's permission surface | iOS: camera and local network only. Everything else blocked, and CI asserts it. |
+| Protocol generator | TypeScript and Python regenerate byte-identical; golden fixture parses on both sides, three malformed shapes rejected on both |
 
-### What is *not* verified, and needs a phone
+### What is not verified
 
-This is the honest list. None of it is known-broken; none of it has been run on
-a device.
+Shorter than it was, and the remaining items are the ones that matter most.
 
-- **On-device rendering.** Layout was written to the constraints, not measured
-  on a screen.
-- **The SQLite migration actually running.** `expo-sqlite` is native, so the
-  migration path has never executed. This is the most likely thing to bite.
-- **Frame-accurate stepping in practice.** `expo-video` documents exact seeking
-  by default, and the sample clip is built to prove it by eye - but it has not
-  been proven yet. This is the single most important thing to check first.
-- **The native privacy controls.** SecureStore, screen-capture blocking and
-  keep-awake are all best-effort wrappers that have not been exercised.
-- **QR scanning** in the pairing flow.
-- **Expo Go compatibility** for `expo-video` and `expo-secure-store`. Both ship
-  in the Expo Go client for SDK 57, so this should be fine, but it is an
-  assumption rather than an observation.
-- **The phone talking to the real vest.** Both halves are verified on their own -
-  the vest end to end, the phone's client by typecheck and review - but the two
-  have not yet been connected to each other.
-- **iOS specifically.** It bundles, and the platform differences are handled in
-  code, but nothing has been run on an actual iPhone. The thing most worth
-  checking there is that clips survive between launches, because iOS stores them
-  in a directory it is allowed to reclaim.
-
-Everything above is a Phase 1 acceptance item. Work through
-[the tour](#a-five-minute-tour) on a real device and you will have covered it.
+- **Whether the camera sees the ball.** The gate. Strap it to a chest, umpire
+  two overs, measure how often the impact zone is in frame. Everything above is
+  worthless if this fails, and it costs an afternoon to find out.
+- **Frame-accurate stepping on real footage.** It was proven against the
+  synthetic clip — but until this week the phone was inventing the frame rate, so
+  what was measured was a rate that was not the camera's. Worth redoing.
+- **A physical phone.** Everything to date is a simulator on the same Wi-Fi,
+  which reaches the vest identically. The one thing genuinely different on a
+  handset is whether clips survive between launches on iOS, where the cache
+  directory can be reclaimed.
+- **Anything unattended.** No soak longer than an hour, and the Pi has no
+  real-time clock — so it boots believing it is yesterday until NTP corrects it,
+  which wipes the buffer. Fit the RTC battery before trusting it alone.
+- **QR pairing.** Manual entry is proven; the scanner is not, because a
+  simulator has no camera.
 
 ---
 
@@ -245,19 +230,30 @@ There is no vest, so the app runs against `MockTransport`, a fake vest that
 bowls on a timer, occasionally drops a delivery, and produces timeouts and
 recovered clips at a realistic rate. **Settings** controls its speed.
 
-### The vest scaffold
+### The vest, on a laptop
 
-Phase 1 is a health endpoint and the generated protocol models - enough to prove
-the toolchain and give Phase 3 something to point at.
+The vest service is real and runs anywhere. Point it at a video file and it
+behaves exactly as it does on a Pi, minus the sensor.
 
 ```bash
 cd thirdeye/vest
 python3 -m venv .venv
 ./.venv/bin/pip install -e '.[dev]'
-./.venv/bin/python -m pytest              # 10 tests
-./.venv/bin/uvicorn thirdeye.main:app --reload
-curl -s localhost:8000/api/health
+./.venv/bin/python -m pytest              # 68 tests
+
+THIRDEYE_SOURCE=file:../footage/vest-source.mp4 \
+THIRDEYE_KEY_PATH=/tmp/thirdeye-signing.key \
+  ./.venv/bin/uvicorn thirdeye.main:app --host 0.0.0.0 --port 8000
 ```
+
+It refuses unsigned requests, so the phone needs the key. Print the pairing
+payload and read `psk` out of it:
+
+```bash
+THIRDEYE_KEY_PATH=/tmp/thirdeye-signing.key ./.venv/bin/python -m thirdeye.pairing
+```
+
+For a real Pi, see [`vest/README.md`](vest/README.md).
 
 ---
 
@@ -421,23 +417,98 @@ have them tap through it. If they understand the product, Phase 1 is done.
 
 ## What is in this repository
 
+Seven directories, each with one job.
+
 ```
 thirdeye/
-├── protocol/   the wire format, and the generator that keeps both sides honest
-├── mobile/     the review app - React Native, Expo, TypeScript, Android first
-├── vest/       on-body capture unit - Python, FastAPI, GStreamer      (scaffold)
-├── cloud/      optional post-match sync - FastAPI                     (deferred)
-└── docs/
-    ├── SPEC.md          the full design and build plan, all 8 phases
-    ├── PRIVACY.md       data inventory, retention, the open questions
-    ├── THREAT_MODEL.md  assets, adversaries, and the one real hole
-    ├── SCALING.md       what is already paid for, and what breaks first
-    └── decisions/       six ADRs, including every place this deviates from the spec
+├── protocol/   one JSON Schema, and the generator that writes both languages
+├── vest/       the on-body recorder            Python, FastAPI, ffmpeg
+├── mobile/     the review app                  TypeScript, React Native, Expo
+├── scripts/    bring-up and bench tools        bash
+├── docs/       design, privacy, and decisions
+├── footage/    your own test video             never committed
+└── cloud/      post-match sync                 deferred, see below
 ```
 
-One repository rather than four, because the vest and the phone describe the
-same wire format in two languages and the gap between them is where protocol
-bugs live. See [ADR 1](docs/decisions/0001-monorepo-with-generated-protocol.md).
+### `protocol/` — the wire format
+
+One `schema/protocol.v1.json` generates `mobile/src/types/protocol.ts` and
+`vest/thirdeye/protocol.py`. Neither is hand-edited, and `npm run protocol:check`
+fails CI if either has drifted. Both sides parse the same golden fixture in
+`fixtures/`, including three malformed shapes that must be rejected, and both
+check their HMAC against `fixtures/signing-vectors.json`.
+
+One repository rather than four, because the vest and the phone describe the same
+wire format in two languages and the gap between them is where protocol bugs
+live — see [ADR 1](docs/decisions/0001-monorepo-with-generated-protocol.md).
+
+### `vest/` — the recorder
+
+Runs on a Raspberry Pi as a systemd service. Records continuously into a
+five-minute rolling buffer, cuts a clip when a marker arrives, serves it over
+signed HTTP with resume, and announces it over a signed WebSocket.
+
+| Area | What lives there |
+|---|---|
+| `thirdeye/capture/` | `recorder` (supervised ffmpeg + watchdog), `buffer` (the rolling window), `cutter` (stream-copy concat), `source` (camera, file or pattern) |
+| `thirdeye/api/` | the WebSocket hub and ranged file serving |
+| `thirdeye/session/` | markers in, clips out, and honest refusals |
+| `thirdeye/storage/` | hashing, sidecars, the twelve-clip ring |
+| `thirdeye/security.py` | key, signatures, replay window |
+| `deploy/` | systemd unit, hostapd and dnsmasq, `thirdeye.env` |
+| `scripts/` | `check_clip.py` (be the phone), `pull_clips.py` (copy clips off), `smoke_test.py` |
+
+### `mobile/` — the app
+
+| Area | What lives there |
+|---|---|
+| `src/app/` | the screens, file-routed by expo-router |
+| `src/net/` | transport, downloader, signing, the vest clock |
+| `src/stores/` | connection, clips, deliveries, match, pairing, auth |
+| `src/privacy/` | retention, secrets, storage, audit, screen guard |
+| `src/mock/` | a pretend vest, so the whole loop runs with no hardware |
+| `src/db/` | SQLite and ordered migrations |
+| `src/auth/`, `src/theme/`, `src/components/`, `src/lib/` | identity, palette, the component kit, pure helpers |
+
+### `scripts/` — bring-up
+
+Run in this order the first time; each is safe to run twice.
+
+| Script | Where | What it does |
+|---|---|---|
+| `check-hardware.sh` | on the Pi | Measures encoder, CPU, camera modes, radio, disk, clock. Changes nothing. |
+| `setup-pi.sh` | on the Pi | Packages, service account, `/data`, venv, systemd unit |
+| `setup-hotspot.sh` | on the Pi | The vest's own Wi-Fi, via NetworkManager. **Last**, after a clip has reached a phone. |
+| `vest/scripts/check_clip.py` | on the Pi | The app, in a script: sign, mark, download, verify. Separates "the vest cannot cut it" from "the app cannot fetch it". |
+| `vest/scripts/pull_clips.py` | anywhere | Copies clips onto a computer, hash-checked, for judging framing on a big screen |
+| `prepare-footage.sh` | on a Mac | Turns your recordings into test footage |
+| `add-footage.sh` | on a Mac | Pushes that footage into the simulator |
+
+### `footage/` — your own video
+
+Gitignored, entirely. The bundled sample is a synthetic test pattern, right for
+proving frame stepping is exact and useless for the question that decides whether
+any of this works: **is the impact zone in shot from an umpire's chest?** Put
+real recordings here and both the app and the vest can use them in place of a
+camera. See [`footage/README.md`](footage/README.md).
+
+### `cloud/` — deferred
+
+A README and a `pyproject.toml`, deliberately nothing else. Blocked on five
+policy questions in [`docs/PRIVACY.md`](docs/PRIVACY.md) §8, which are decisions
+rather than code. **Nothing on match day may ever depend on it.**
+
+### `docs/`
+
+| File | What it answers |
+|---|---|
+| [`SPEC.md`](docs/SPEC.md) | The full design and build plan, all eight phases |
+| [`PRIVACY.md`](docs/PRIVACY.md) | Every piece of data, where it lives, how long, who enforces it |
+| [`THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Assets, adversaries, and what is still open |
+| [`AUTH.md`](docs/AUTH.md) | Optional Auth0 sign-in, and why nothing is gated on it |
+| [`pi-prototype.md`](docs/pi-prototype.md) | The hardware log: what worked, and every failure already paid for |
+| [`SCALING.md`](docs/SCALING.md) | What is already paid for, and what breaks first |
+| [`decisions/`](docs/decisions) | Eleven ADRs, including every place this deviates from the spec |
 
 There is no `remote/` package. The Bluetooth button moved into the app; see
 [ADR 8](docs/decisions/0008-remote-moves-into-the-app.md) for what that bought
@@ -539,10 +610,20 @@ npm run protocol:check           # from the repo root
 cd mobile
 npm run typecheck
 npm run lint
-npm test                         # 30 tests
+npm test                         # 95 tests
 
 cd ../vest
-./.venv/bin/python -m pytest     # 10 tests
+./.venv/bin/python -m pytest     # 68 tests
+```
+
+Two more need something running, so they are not in CI:
+
+```bash
+# the whole vest, end to end, with a file standing in for the camera
+./.venv/bin/python scripts/smoke_test.py            # 30 checks
+
+# the app, in a script, against a vest that is already running
+./.venv/bin/python scripts/check_clip.py            # 17 checks
 ```
 
 All of this runs on every push via `.github/workflows/ci.yml`.
@@ -612,11 +693,11 @@ hardware is ordered. They are policy questions, not engineering ones.
 
 | Phase | Name | Ends when |
 |---|---|---|
-| **1** | **Foundations and UI** | **Done.** All packages build; the app runs on a real device against a mock vest, and the umpire's control works end to end. |
-| 2 | Vest brings up | The board boots, makes its own Wi-Fi, records continuously with hardware encoding |
-| 3 | The link | Phone reaches a real vest, markers arrive, a real file downloads |
-| 4 | Buffer and cutting | A marker produces a correctly bounded clip, including one replayed after an outage |
-| 5 | Hardening | Retry, resume, retention, health, signed requests; survives a pulled cable |
+| **1** | **Foundations and UI** | **Done.** All packages build, the app runs against a mock vest, and the umpire's control works end to end. |
+| **2** | **Vest brings up** | **Done on a Pi.** Boots, records continuously, survives restarts. Software encoding, because a Pi 5 has no encoder; its own Wi-Fi is scripted but not yet run. |
+| **3** | **The link** | **Done.** The phone reaches a real vest, markers arrive, a real file downloads and verifies. |
+| **4** | **Buffer and cutting** | **Done.** A marker produces a correctly bounded clip, a missed start is recovered, and a marker past the buffer is refused rather than faked. |
+| **5** | **Hardening** | **Mostly done.** Retry, resume, retention, signed requests, a watchdog for a recorder that stops without stopping. Left: an unattended soak, and an RTC so the clock cannot wipe the buffer. |
 | 6 | Field trial | Two overs of a real fixture, measured miss rate. **This is the gate.** |
 | 7 | Cloud and consent | Kept clips upload; retention policy decided; opt-in research retention exists |
 

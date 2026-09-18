@@ -1,6 +1,6 @@
 # thirdeye-vest
 
-The on-body unit. Python, FastAPI, GStreamer. Runs on a Radxa ROCK 5C in the
+The on-body unit. Python, FastAPI, ffmpeg. Runs on a Raspberry Pi today and a Radxa ROCK 5C in the
 umpire's vest.
 
 It records continuously into a five-minute rolling buffer on the SSD, cuts a

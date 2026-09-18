@@ -20,8 +20,9 @@ No open work.
 
 ## Mobile
 
-Phase 1 complete. 84 tests, typecheck clean, lint clean, both production
-bundles export, iOS project compiles in Xcode. HMAC-SHA256 request signing and
+Phase 1 complete. 95 tests, typecheck clean, lint clean, both production
+bundles export, iOS project compiles in Xcode. Optional Auth0 sign-in, gating
+nothing - see `docs/AUTH.md`. HMAC-SHA256 request signing and
 the signed control-channel handshake are in.
 
 Signing is stamped in *vest* time, not phone time, because a vest has no
@@ -45,7 +46,7 @@ Not yet run on a physical device. The unverified list is in `README.md` under
 ## Vest
 
 Service is real: continuous buffer, cut on marker, HTTP serve with resume,
-signed requests, pairing code. 67 tests plus a 30-check end-to-end run.
+signed requests, pairing code. 68 tests plus a 30-check end-to-end run.
 
 **The camera is no longer a fake.** It runs on a Raspberry Pi 5 with an OV5647
 and records continuously - see Hardware. What has still never run against real

@@ -8,7 +8,7 @@ The software is finished and running. The only thing still pretending is the cam
 |---|---|
 | Phone app | 7,100 lines of TypeScript |
 | Vest service | 1,694 lines of Python |
-| Checks passing | 55 phone · 34 vest · 20 end-to-end |
+| Checks passing | 95 phone · 68 vest · 30 end-to-end · 17 against a real camera |
 | Decisions recorded | 11 ADRs in [`docs/decisions/`](docs/decisions) |
 | Fakes remaining | 1 — the camera |
 
@@ -402,7 +402,7 @@ because uniform ones are precisely what hid it.
 | Database migration on a device | Correct schema and version |
 | The app runs on iOS | Real build, launches, screens render |
 | Permissions of the shipped app | Camera and local network only |
-| Tests | 84 phone, 61 vest, 30 end-to-end checks |
+| Tests | 95 phone, 68 vest, 30 end-to-end checks, 17 against a real camera |
 
 ### ○ Not proven — and honestly so
 
