@@ -89,4 +89,8 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -e '.[dev]'
+      # The mobile job has typecheck and lint gates; this one only ever had
+      # tests, so an unused import could sit in the vest indefinitely while the
+      # same thing failed the build on the phone.
+      - run: python -m ruff check .
       - run: python -m pytest

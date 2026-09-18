@@ -114,7 +114,8 @@ def main() -> int:
         seq = clip["seq"]
         destination = args.out / f"{clip['camera_id']}_{seq:04d}.mp4"
         print(f"  {seq:>3}  {clip['duration_s']:>5.1f}s  {clip['bytes'] / 1e6:>5.1f} MB  "
-              f"{clip.get('resolution') or '?'}  {clip.get('fps') or '?'} fps  ", end="", flush=True)
+              f"{clip.get('resolution') or '?'}  {clip.get('fps') or '?'} fps  ",
+              end="", flush=True)
         try:
             data = request(args.host, key, f"/clips/{seq}.mp4")
         except OSError as exc:

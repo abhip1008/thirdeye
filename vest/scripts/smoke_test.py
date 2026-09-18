@@ -102,7 +102,8 @@ def main() -> int:
         # a vest there at all.
         health = client.get("/api/health").json()
         check("health reports recording", health["recording"] is True)
-        check("buffer depth is reported", health["buffer_held_s"] > 0, f"{health['buffer_held_s']}s")
+        check("buffer depth is reported", health["buffer_held_s"] > 0,
+              f"{health['buffer_held_s']}s")
 
         # Signing, before anything else uses it: an unsigned request must be
         # refused, and the same request signed must go through.
@@ -114,7 +115,8 @@ def main() -> int:
 
         # The same signature twice is a replayed request, not a second one.
         replayed = signed("GET", "/api/clips")
-        check("a signature works once", client.get("/api/clips", headers=replayed).status_code == 200)
+        check("a signature works once",
+              client.get("/api/clips", headers=replayed).status_code == 200)
         check("and is refused the second time",
               client.get("/api/clips", headers=replayed).status_code == 401)
 
@@ -214,7 +216,8 @@ def main() -> int:
                               headers={**signed("GET", path_for), "Range": f"bytes=0-{half - 1}"})
             tail = client.get(path_for,
                               headers={**signed("GET", path_for), "Range": f"bytes={half}-"})
-            check("a ranged request answers 206", head.status_code == 206 and tail.status_code == 206)
+            check("a ranged request answers 206",
+                  head.status_code == 206 and tail.status_code == 206)
             check("a resumed download reassembles byte-for-byte",
                   hashlib.sha256(head.content + tail.content).hexdigest() == clip["sha256"])
 
@@ -282,7 +285,8 @@ def main() -> int:
 
             # A marker older than the buffer must be refused, not turned into an
             # empty clip that looks fine.
-            ws.send_json({"v": 1, "type": "mark", "seq": 3, "edge": "end", "at": time.time() - 9999})
+            ws.send_json({"v": 1, "type": "mark", "seq": 3, "edge": "end",
+                          "at": time.time() - 9999})
             refusal = None
             deadline = time.time() + 6
             while time.time() < deadline:

@@ -16,7 +16,6 @@ import contextlib
 import logging
 import os
 import time
-from pathlib import Path
 
 from .buffer import RollingBuffer
 from .source import Source

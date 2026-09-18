@@ -9,13 +9,12 @@ something they can review.
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..protocol import ClipMeta, ClosedBy, PROTOCOL_VERSION
+from ..protocol import PROTOCOL_VERSION, ClipMeta, ClosedBy
 
 log = logging.getLogger(__name__)
 

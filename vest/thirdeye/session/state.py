@@ -223,7 +223,9 @@ class Session:
             }
         )
         for gone in self.store.purge():
-            await self.emit({"type": "clip_expired", "seq": gone, "camera_id": self.store.camera_id})
+            await self.emit(
+                {"type": "clip_expired", "seq": gone, "camera_id": self.store.camera_id}
+            )
         return clip
 
     async def _refuse(self, seq: int, edge: MarkEdge, reason: str, detail: str) -> None:

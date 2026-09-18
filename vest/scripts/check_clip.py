@@ -137,7 +137,7 @@ async def run(host: str, key: str, hold: float) -> int:
         while time.time() < deadline:
             try:
                 message = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             if message.get("type") == "clip_ready" and message.get("seq") == seq:
                 clip = message

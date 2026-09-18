@@ -44,7 +44,9 @@ buffer = RollingBuffer(
     segment_seconds=settings.segment_seconds,
     horizon_seconds=settings.buffer_seconds,
 )
-store = ClipStore(root=settings.data_root, camera_id=settings.camera_id, ring_size=settings.ring_size)
+store = ClipStore(
+    root=settings.data_root, camera_id=settings.camera_id, ring_size=settings.ring_size
+)
 session = Session(settings, buffer, store, emit=hub.broadcast)
 recorder = Recorder(
     source=Source.parse(
@@ -116,7 +118,8 @@ def require_signature(request: Request) -> None:
 
 def health() -> dict[str, Any]:
     """What the phone shows in the corner, and what a support call starts from."""
-    total, _, free = shutil.disk_usage(settings.data_root.parent if settings.data_root.parent.exists() else Path("/"))
+    root = settings.data_root.parent if settings.data_root.parent.exists() else Path("/")
+    _, _, free = shutil.disk_usage(root)
     return {
         "battery_pct": 100.0,          # No battery gauge off the vest hardware yet.
         "temp_c": 0.0,                 # Same: read from the thermal zone in Phase 2.
@@ -303,7 +306,9 @@ async def websocket(socket: WebSocket) -> None:
     await hub.add(socket)
     try:
         await hub.send(socket, _hello_payload())
-        await hub.send(socket, {"type": "status", "camera_id": settings.camera_id, "health": health()})
+        await hub.send(
+            socket, {"type": "status", "camera_id": settings.camera_id, "health": health()}
+        )
 
         while True:
             message = await socket.receive_json()

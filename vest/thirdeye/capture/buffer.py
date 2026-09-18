@@ -117,7 +117,11 @@ class RollingBuffer:
                 # the previous one ended. The filesystem knows this exactly; the
                 # index does not, because segments land on keyframes rather than
                 # on a stopwatch.
-                started_at = members[position - 1][2] if position > 0 else closed_at - self.segment_seconds
+                started_at = (
+                    members[position - 1][2]
+                    if position > 0
+                    else closed_at - self.segment_seconds
+                )
                 segments.append(
                     Segment(
                         path=path,

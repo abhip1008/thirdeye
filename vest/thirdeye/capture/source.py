@@ -132,7 +132,7 @@ class Source:
         height: int | None = None,
         framerate: int | None = None,
         extra_args: str | None = None,
-    ) -> "Source":
+    ) -> Source:
         """One of:
 
         `camera:/dev/video0`     a USB camera

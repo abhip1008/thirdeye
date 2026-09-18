@@ -19,6 +19,20 @@ include = ["thirdeye*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Generated from protocol/schema/protocol.v1.json. Style findings here belong to
+# the generator, and hand-editing it is what the --check in CI exists to catch.
+extend-exclude = ["thirdeye/protocol.py"]
+
+[tool.ruff.lint]
+# Deliberately modest: errors, undefined and unused names, import order, and the
+# syntax that has a better modern form. Not a style crusade - the point is to
+# catch an import nobody removed, not to argue about comprehensions.
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Scripts put the repository on sys.path before importing from it, so their
+# imports genuinely cannot all be at the top.
+"scripts/*.py" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
