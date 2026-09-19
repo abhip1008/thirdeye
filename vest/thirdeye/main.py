@@ -279,8 +279,11 @@ def pairing_payload(*, redacted: bool = False) -> dict[str, Any]:
     """
     return {
         "v": PROTOCOL_VERSION,
-        "ssid": f"thirdeye-{settings.camera_id}",
-        "password": "set-in-hostapd.conf",
+        # Read from what actually made the network, not guessed from the camera
+        # id. A label that names a network which does not exist is worse than a
+        # label with a gap in it.
+        "ssid": settings.ap_ssid or f"thirdeye-{settings.camera_id}",
+        "password": settings.ap_password or None,
         "host": settings.advertise_host,
         "camera_id": settings.camera_id,
         "psk": "<redacted>" if redacted else signing_key,

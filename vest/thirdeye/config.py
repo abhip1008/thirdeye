@@ -131,6 +131,19 @@ class Settings(BaseSettings):
     differ between boards and between versions of rpicam-apps, so the useful
     ones are found in a net, not here."""
 
+    ap_ssid: str = ""
+    ap_password: str = ""
+    """The network the vest makes, as the phone should be told to join it.
+
+    Written by `scripts/setup-hotspot.sh`, because that is what creates the
+    network and therefore the only thing that knows its name and passphrase.
+
+    Empty means unknown, and the pairing code then omits them rather than
+    asserting something. The first version carried the literal string
+    "set-in-hostapd.conf" as the password - a placeholder that had escaped into
+    the one artefact an umpire is handed, on a label that exists precisely so
+    nobody has to be told anything separately."""
+
     advertise_host: str = "192.168.43.1:8000"
     """The address the pairing code tells the phone to dial, **with the port**.
 

@@ -242,7 +242,7 @@ class PairingPayload(BaseModel):
 
     v: int
     ssid: str
-    password: str = Field(..., description="WPA2 passphrase for the vest AP. Secret: never logged, never rendered, never synced.")
+    password: str | None = Field(..., description="WPA2 passphrase for the vest AP, or null where the vest does not know it - which is any vest whose network was not made by scripts/setup-hotspot.sh. Secret: never logged, never rendered, never synced.")
     host: str = Field(..., description="e.g. 192.168.43.1")
     camera_id: str
     psk: str | None = Field(default=None, description="Optional 32-byte hex shared secret. When present the phone HMACs every request so another phone on the same AP cannot pull clips. See docs/THREAT_MODEL.md.")

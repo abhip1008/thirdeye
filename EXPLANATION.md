@@ -542,10 +542,31 @@ sudo /opt/thirdeye/scripts/setup-hotspot.sh 'a-passphrase'
 
 Settings → mock vest off. Pair with the address and key. Start a match. Tap.
 
-### After that
+### Print the label, once
 
-**Nothing.** Switching the vest on is the whole procedure: it boots, brings up its
-Wi-Fi, starts recording, and the phone reconnects and starts a match by itself.
+This is the step that makes everything above disappear for whoever actually
+wears the vest:
+
+```bash
+sudo -u thirdeye /opt/thirdeye/vest/.venv/bin/python -m thirdeye.pairing \
+  | qrencode -o pairing.png -s 8
+```
+
+Print it, tape it to the vest. That one code carries the network to join, its
+passphrase, the address to dial and the signing key — everything the phone needs
+and nothing it can work out for itself.
+
+### What an umpire actually does
+
+Not the person who built the vest — the person who wears it:
+
+1. Switch the vest on.
+2. Join `thirdeye-vest-01` on their phone. Once, ever; the phone remembers.
+3. Open the app and **scan the code on the vest**. Once per season.
+4. Start a match. Tap as the bowler runs in.
+
+That is the whole procedure. No address to find, no key to type, no terminal,
+and nothing to remember between matches — the vest is a box with a switch.
 
 ---
 

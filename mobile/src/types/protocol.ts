@@ -259,8 +259,8 @@ export type ClientMessage =
 export interface PairingPayload {
   v: number;
   ssid: string;
-  /** WPA2 passphrase for the vest AP. Secret: never logged, never rendered, never synced. */
-  password: string;
+  /** WPA2 passphrase for the vest AP, or null where the vest does not know it - which is any vest whose network was not made by scripts/setup-hotspot.sh. Secret: never logged, never rendered, never synced. */
+  password: string | null;
   /** e.g. 192.168.43.1 */
   host: string;
   camera_id: string;

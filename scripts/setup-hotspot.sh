@@ -67,28 +67,45 @@ nmcli connection modify "$NAME" \
 # with no route to the internet at all.
 echo "  $SSID on ${BAND/a/5 GHz} channel $CHANNEL, vest at $ADDRESS"
 
-say "3. tell the pairing code where the vest now is"
-if grep -q '^THIRDEYE_ADVERTISE_HOST=' /etc/thirdeye.env 2>/dev/null; then
-  # With the port. The service listens on 8000; an address without a port means
-  # 80, and the phone then fails to connect rather than being refused.
-  sed -i "s|^THIRDEYE_ADVERTISE_HOST=.*|THIRDEYE_ADVERTISE_HOST=$ADDRESS:8000|" /etc/thirdeye.env
-  echo "  /etc/thirdeye.env now advertises $ADDRESS:8000"
-  systemctl restart thirdeye 2>/dev/null || true
-else
-  echo "  WARNING: /etc/thirdeye.env has no THIRDEYE_ADVERTISE_HOST line."
-  echo "  Add THIRDEYE_ADVERTISE_HOST=$ADDRESS:8000 or the pairing code will point"
-  echo "  the phone at the wrong address."
-fi
+say "3. tell the pairing code about the network just made"
+# Everything an umpire needs is on one label, so the label has to be right: the
+# network to join, its passphrase, the address to dial, and the signing key.
+# This script is the only thing that knows the first two, because it is what
+# created them.
+set_env() {
+  local key=$1 value=$2
+  if grep -q "^$key=" /etc/thirdeye.env 2>/dev/null; then
+    # The passphrase can contain anything, so use a delimiter it will not hold
+    # and escape what sed would otherwise read as syntax.
+    local escaped
+    escaped=$(printf '%s' "$value" | sed -e 's/[\\&|]/\\&/g')
+    sed -i "s|^$key=.*|$key=$escaped|" /etc/thirdeye.env
+  else
+    printf '%s=%s\n' "$key" "$value" >> /etc/thirdeye.env
+  fi
+}
+
+# With the port. The service listens on 8000; an address without a port means
+# 80, and the phone then fails to connect rather than being refused.
+set_env THIRDEYE_ADVERTISE_HOST "$ADDRESS:8000"
+set_env THIRDEYE_AP_SSID "$SSID"
+set_env THIRDEYE_AP_PASSWORD "$PASSPHRASE"
+echo "  the pairing code now carries $SSID at $ADDRESS:8000"
+systemctl restart thirdeye 2>/dev/null || true
 
 say "4. bringing it up - an SSH session over Wi-Fi ends here"
 nmcli connection up "$NAME"
 
 cat <<TEXT
 
-  Join "$SSID" from the phone, then pair it with:
+  Now print the label that makes all of this hands-off. Run it once, tape the
+  code to the vest, and an umpire never types anything again:
 
-      address   $ADDRESS:8000
-      key       sudo -u thirdeye <repo>/vest/.venv/bin/python -m thirdeye.pairing
+      sudo -u thirdeye /opt/thirdeye/vest/.venv/bin/python -m thirdeye.pairing \\
+        | qrencode -o /tmp/pairing.png -s 8
+
+  That code carries the network, its passphrase, the address and the signing
+  key. Scanning it is the entire pairing procedure.
 
   To get back on your home Wi-Fi later:
 
