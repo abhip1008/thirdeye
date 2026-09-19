@@ -14,6 +14,9 @@ The software is finished and running. The only thing still pretending is the cam
 
 ---
 
+> New to the project? [**EXPLANATION.md**](EXPLANATION.md) explains the whole
+> system from the top in plain language. This document is the build notes.
+
 ## Contents
 
 1. [The idea](#1-the-idea)

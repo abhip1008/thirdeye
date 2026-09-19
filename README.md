@@ -12,7 +12,12 @@ Clips older than twelve balls are deleted automatically unless someone kept them
 
 > The umpire's own eyes, on rewind, with nothing kept.
 
-📖 **[INFO.md](INFO.md) — start here.** The whole project explained in plain
+📖 **[EXPLANATION.md](EXPLANATION.md) — start here if you are new.** The whole
+system from the top in plain language: the problem, the one idea it rests on, a
+ball second by second, and every part explained before it is used. No prior
+knowledge assumed.
+
+📖 **[INFO.md](INFO.md) — the build notes.** The whole project explained in plain
 language: how it works, the decisions behind it, the bugs found along the way,
 and an honest line between what has been proven and what has only been written.
 
