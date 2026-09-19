@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -23,6 +23,7 @@ import { type } from '@/theme/typography';
  */
 export default function PairScreen() {
   const router = useRouter();
+  const { repair } = useLocalSearchParams<{ repair?: string }>();
   const pairing = usePairing();
   const openMatch = useMatch((s) => s.match);
   const acknowledged = useSettings((s) => s.noticeAcknowledged);
@@ -43,8 +44,13 @@ export default function PairScreen() {
   /* A match already running means the app was killed mid-over - a phone that
      locked in a pocket, or ran out of memory behind the camera. Going back to
      pairing would make the umpire tap through setup again while a bowler waits.
-     Straight to the live screen instead. */
-  if (openMatch && openMatch.endedAt === null) {
+     Straight to the live screen instead.
+
+     Unless somebody asked for this screen on purpose. The skip is for a launch,
+     not for a deliberate tap: without the exception, forgetting a vest mid-match
+     left the app with no route back here at all - every way in bounced straight
+     out again, and the only cure was ending the match. */
+  if (openMatch && openMatch.endedAt === null && repair !== '1') {
     return <Redirect href="/live" />;
   }
 

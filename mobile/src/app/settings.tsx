@@ -190,10 +190,21 @@ export default function SettingsScreen() {
         <SettingRow label="Name" value={pairing.cameraId ?? '—'} />
         <SettingRow label="Protocol" value={`v${PROTOCOL_VERSION}`} />
         <SettingRow
-          label="Forget this vest"
-          hint="Clears the address, the Wi-Fi passphrase and the signing key. Does not sign you out."
-          onPress={() => void pairing.forget()}
+          label={pairing.paired ? 'Pair a different vest' : 'Pair a vest'}
+          hint={
+            pairing.paired
+              ? 'Point this phone at another vest, or re-enter the key.'
+              : 'Enter the address and key from the label on the vest.'
+          }
+          onPress={() => router.push('/?repair=1')}
         />
+        {pairing.paired ? (
+          <SettingRow
+            label="Forget this vest"
+            hint="Clears the address, the Wi-Fi passphrase and the signing key. Does not sign you out."
+            onPress={() => void pairing.forget()}
+          />
+        ) : null}
       </Card>
 
       <SectionLabel>Developer</SectionLabel>
